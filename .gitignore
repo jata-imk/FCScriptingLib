@@ -1,0 +1,4 @@
+*.env
+*.FCMacro
+__pycache__/
+.vscode/
