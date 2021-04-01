@@ -1,12 +1,10 @@
 # -*- coding: utf-8 -*-
 
 import sys, os
+import FreeCAD, Sketcher
 
 FREECADPATH = os.getenv('FREECADPATH')
 sys.path.append(FREECADPATH) # path to your FreeCAD.so or FreeCAD.dll filE
-
-import FreeCAD as App
-import FreeCAD, Sketcher
 
 import FabCAD #Custom Library
 
@@ -17,10 +15,9 @@ nameBody = "Cuerpo"
 # Crear un nuevo documento en blanco
 doc = FabCAD.nuevoDocumento(nameProject)
 doc.nuevaPieza(namePart).nuevoCuerpo(nameBody).crearPlano("Planta").crearPlano("Alzado", soporte="XZ_Plane", cuerpo = nameBody).crearPlano("Vista_Lateral", "YZ_Plane", doc.cuerpos[nameBody])
+nuevoSketch = doc.nuevoSketch("sketch", doc.cuerpos[nameBody], doc.planos["Planta"])
 
 docTest = FabCAD.nuevoDocumento()
-
-nuevoSketch = doc.nuevoSketch("sketch", doc.cuerpos[nameBody], doc.planos["Planta"])
 sketchTest = doc.nuevoSketch("sketchTest", False, "Alzado")
 
 doc.hacerActivo(namePart).crearPlano("testPieza").nuevoSketch("testSketch",False,"testPieza")
@@ -56,24 +53,29 @@ for linea in range(3):
 	if linea > 0:
 		doc.base.getObject("sketch").addConstraint(Sketcher.Constraint('Parallel',  linea -1, linea)) 
 		doc.base.getObject("sketch").addConstraint(Sketcher.Constraint('Horizontal', linea - 1, 1, linea, 1)) 		
-		doc.base.getObject("sketch").addConstraint(Sketcher.Constraint('DistanceX', linea - 1, 1, linea, 1, App.Units.Quantity('{} mm'.format( longitudH )))) 
+		doc.base.getObject("sketch").addConstraint(Sketcher.Constraint('DistanceX', linea - 1, 1, linea, 1, FreeCAD.Units.Quantity('{} mm'.format( longitudH )))) 
 
 	sumaX =sumaX + 20
 	longitudLinea += 10
 
-doc.base.getObject("sketch").addConstraint(Sketcher.Constraint('Angle',0,1,-1,2, App.Units.Quantity('135.000000 deg'))) 
+doc.base.getObject("sketch").addConstraint(Sketcher.Constraint('Angle',0,1,-1,2, FreeCAD.Units.Quantity('135.000000 deg'))) 
 
 puntos = []
 
 puntos.append([47,40])
 puntos.append([54,55])
 puntos.append([64,33])
+
+#HACK Poder añadir un arco si la longitud de la lista es 3 [x,y, radio]
+puntos.append([69,48,30])
+
 puntos.append([69,48])
 puntos.append([74,38])
 puntos.append([83,60])
 
+#Uso desquiciado del method chaining xD
 nuevoSketch.crearRectangulo([100, 10],[140, 20]).crearRectangulo([100, 40],[140, 60]).crearCirculo([25, 50], 15).crearCirculo([150, 50], 15).crearPolilinea(puntos).crearPoligono(10).crearPoligono(12.5, [20, 100], 8).crearPoligono(15, [60, 110], 4).crearPoligono(10, [33, -17], 3)
-
+nuevoSketch.crearRanura([2,1], [8,5], 2)
 """
 nuevoSketch.crearRectangulo([100, 10],[140, 20])
 nuevoSketch.crearRectangulo([100, 40],[140, 60])
