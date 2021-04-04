@@ -39,7 +39,7 @@ class Dibujo:
         return self.base.ConstraintCount
 
     def convertirUnidades(self,stringConversion):
-        return App.Units.parseQuantity(stringConversion)
+        return App.Units.Quantity(stringConversion)
     
     def conmutarRestricciones(self):
         for i in range (self.contRestricciones()):
@@ -238,7 +238,7 @@ class Dibujo:
 
         conList = []
         
-        conList.append(Sketcher.Constraint('Radius', contGeometria+lados, App.Units.Quantity(f"{radio} mm")))
+        conList.append(Sketcher.Constraint('Radius', contGeometria+lados, radio))
         conList.append(Sketcher.Constraint('Coincident', (contGeometria), 1, (contGeometria+lados-1), 2))
         
         for i in range(1, lados):
@@ -249,10 +249,8 @@ class Dibujo:
         for i in range(lados):
             conList.append(Sketcher.Constraint('PointOnObject', (contGeometria + i), 1,(contGeometria+lados)))
         
-        conList.append(Sketcher.Constraint('DistanceX',contGeometria+lados,3,App.Units.Quantity(f"{centro[0]} mm")))
-        conList.append(Sketcher.Constraint('DistanceY',contGeometria+lados,3,App.Units.Quantity(f"{centro[1]} mm")))
-        
         self.doc.base.getObject(self.nombre).addConstraint(conList)
+        self.bloquearPunto(contGeometria+lados,3,centro,True)
 
         return self
 
@@ -292,7 +290,7 @@ class Dibujo:
         
     #COMPLETADO Herramienta de filete completada
     #COMPLETADO Corregir problemas con geometrias que tengan restricciones de posicion
-    def filete(self, geoIndex = [], longitud = 1):
+    def chaflan(self, geoIndex = [], longitud = 1):
         """This tool creates a fillet between two lines joined at one point."""
         contGeometria = self.contGeometria()
 
@@ -376,10 +374,77 @@ class Dibujo:
 
         return self
 
-    #TODO Terminar metodo de matriz lineal
-    def matrizLineal(self):
-        self.base.addRectangularArray([5,6,7,8], App.Vector(62.220424, 6.180424, 0), False, 4, 1, True, 1.000000)
-    
+    #COMPLETADO Terminar metodo de matriz lineal
+    #HACK Preguntar si la distancia debe ser horizontal o normal a los puntos
+    #HACK Crear un metodo para creación de matrices polares
+    def matrizLineal(self, elementos, colxfil, distancia, direccion = 0, pivote = None, clonar = False, acotar = False):
+        """
+        Agrega una matriz de tamaño [filas x columnas] donde cada elemento es una copia de la geometria 
+        seleccionada, desplazada en X y Y una determinada distancia en un cierto angulo dado
+
+        Parametros:
+        elementos: Puede ser un unico entero o una lista de enteros que indican el indice de la geometria
+        colxfil: Si solo se proporciona un entero se tomará como el numero de filas, de lo contrario proporcionar una lista [filas, columnas]
+        direccion: Angulo con respecto al eje horizontal sobre el cual se creará la matriz, por defecto en grados, si se quiere especificar otra unidad debe ingresar una cadena de texto, ejemplo: '45 rad'
+        distancia: Separacion horizontañ entre elementos de la matriz con respecto al punto pivote proporcionado
+        pivote: Punto base sobre el cual se iniciara la separación de cada elemento de la matriz
+        clonar: Si este parametro es True los elementos de la matriz cambiaran si la geometria original cambia, de lo contrario cada elemento será independiente
+        acotar: Si es True, se incluirá una restricción de longitud entre los pivotes de cada elemento
+        """
+        #Se pregunta el tipo de el parametro 'elementos', si es un solo elemento entonces será Int
+        #y se tendrá que convertir a lista para que pueda ser aceptado por la funcion, si el tipo del
+        #parametro ya es una lista simplemente se utiliza sin convertir
+        if type(elementos) is int:
+            elementos = [int(elementos)]
+
+        #Se hace lo mismo con el parametro 'colxfil' y ademas se pregunta por su tamaño, ya que siempre
+        #deben haber dos elementos en este parametro si solamente se introdujo uno (columnas)
+        #se agrega un uno como filas
+        if type(colxfil) is int:
+            colxfil = [int(colxfil), 1]
+
+        elif len(colxfil) == 1:
+            colxfil.append(1)
+
+        #En la siguiente condicion se pregunta si distancia es un entero o una lista, si es un entero
+        #se convierte a una lista y se agrega un uno solo para rellenar, si el parametro es una lista
+        #entonces mediante regla de tres se convierte la distancia a un multiplo de la distancia horizontal
+        #dado que de esa manera recibo el argumento la funcion de FreeCAD
+        if type(distancia) is not list:
+            distancia = [distancia, 1]
+        else:
+            distancia[1] = distancia[1]/distancia[0]
+
+        #Para el parametro 'direccion' si se proporciona un tipo de dato que no es str es 
+        #por que implicitamente se estan usando grados, asi que se hace la conversion a radianes para
+        #las funciones trigonometricas, de lo contrario simplemente se usa el string proporcionado
+        if direccion is not str:
+            vectorX = self.convertirUnidades(f"cos({direccion}*pi/180)*{distancia[0]}")
+            vectorY = self.convertirUnidades(f"sin({direccion}*pi/180)*{distancia[0]}")
+
+        else: 
+            vectorX = self.convertirUnidades(f"cos({direccion})*{distancia[0]}")
+            vectorY = self.convertirUnidades(f"sin({direccion})*{distancia[0]}")
+
+        #Ahora se comprueba si se especifica un punto pivote, de lo contrario se usa el primer punto del primer elemento
+        if pivote is None:
+            pivote = [elementos[0], 1]
+
+        #Funcion de FreeCAD para la creaciones de matrices lineales
+        self.base.addRectangularArray(elementos, App.Vector(vectorX, vectorY, 0), clonar, colxfil[0], colxfil[1], acotar, distancia[1])
+
+        return self
+
+    def copiar(self):
+        print("Todavia no existo :D")
+
+        return self
+
+    def clonar(self):
+        print("Todavia no existo :D")
+
+        return self
+
     def seleccionarGeometria(self):
         #Idea de implementación: Establecer un punto desde el cual la geometria será seleccionada
         print("Tampoco existo :D")

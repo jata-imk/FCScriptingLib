@@ -17,28 +17,32 @@ doc = FabCAD.nuevoDocumento(nameProject)
 doc.nuevaPieza(namePart).nuevoCuerpo(nameBody).crearPlano("Planta").crearPlano("Alzado", soporte="XZ_Plane", cuerpo = nameBody).crearPlano("Vista_Lateral", "YZ_Plane", doc.cuerpos[nameBody])
 nuevoSketch = doc.nuevoSketch("sketch", doc.cuerpos[nameBody], doc.planos["Planta"])
 
-docTest = FabCAD.nuevoDocumento()
-sketchTest = doc.nuevoSketch("sketchTest", False, "Alzado")
-
-doc.hacerActivo(namePart).crearPlano("testPieza").nuevoSketch("testSketch",False,"testPieza")
-
 """
-
 doc = FabCAD.nuevoDocumento(nameProject)
 
 # Crea una nueva pieza vinculada al documento que acabamos de crear y un nuevo cuerpo sin vinculos a ninguna pieza
-doc.nuevaPieza(namePart) 
-cuerpo = doc.nuevoCuerpo(nameBody)
+pieza = FabCAD.nuevaPieza(doc, namePart) 
+cuerpo = FabCAD.nuevoCuerpo(doc, nameBody)
 
+#COMPLETADO Crear metodo de clase para vincular objetos del documento a traves del MethodChaining
 # Se vincula el cuerpo previamente creado a la pieza creada al inicio
-#TODO Crear metodo de clase para vincular objetos del documento a traves del MethodChaining
-doc.base.Pieza01.addObject(doc.cuerpos[nameBody])
+doc.vincularObjetos(pieza, cuerpo)
 
 # Se crean los planos de Planta, Alzado y Vista Lateral vinculados a los planos base la PIEZA
 doc.crearPlano("Planta") 				#Creacion de plano con solo 2 argumentos
 doc.crearPlano("Alzado", soporte="XZ_Plane", cuerpo = nameBody) 	#Creacion de plano mediante diccionario
 doc.crearPlano("Vista_Lateral", "YZ_Plane", doc.cuerpos[nameBody]) 	#Sin diccionario y con objeto
+
+nuevoSketch = doc.nuevoSketch("sketch", doc.cuerpos[nameBody], doc.planos["Planta"])
 """
+
+#Creacion de nuevos documentos al mismo tiempo
+docTest = FabCAD.nuevoDocumento()
+sketchTest = doc.nuevoSketch("sketchTest", False, "Alzado")
+
+#Se cambia el objeto que se encuentra activo, esto puede lograrse de dos formas, la segunda permite el encadenamiento
+doc.objetoActivo = namePart
+doc.hacerActivo(namePart).crearPlano("testPieza").nuevoSketch("testSketch",False,"testPieza")
 
 #############################################
 sumaX = 0
@@ -67,15 +71,17 @@ puntos.append([54,55])
 puntos.append([64,33])
 
 #HACK Poder añadir un arco si la longitud de la lista es 3 [x,y, radio]
-puntos.append([69,48,30])
+#puntos.append([69,48,30])
 
 puntos.append([69,48])
 puntos.append([74,38])
 puntos.append([83,60])
 
 #Uso desquiciado del method chaining xD
-nuevoSketch.crearRectangulo([100, 10],[140, 20]).crearRectangulo([100, 40],[140, 60]).crearCirculo([25, 50], 15).crearCirculo([150, 50], 15).crearPolilinea(puntos).crearPoligono(10).crearPoligono(12.5, [20, 100], 8).crearPoligono(15, [60, 110], 4).crearPoligono(10, [33, -17], 3)
-nuevoSketch.crearRanura([2,1], [8,5], 2)
+nuevoSketch.crearRectangulo([100, 10],[140, 20]).crearRectangulo([100, 40],[140, 60]).crearCirculo([25, 50], 15).crearCirculo([150, 50], 15).crearPolilinea(puntos).crearPoligono(10).crearPoligono(12.5, [20, 100], 8).crearPoligono(15, [60, 110], 4).crearPoligono(10, [33, -17], 3).crearRanura([2,1], [8,5], 2)
+
+nuevoSketch.crearPoligono(10, [200,200], 5)
+
 """
 nuevoSketch.crearRectangulo([100, 10],[140, 20])
 nuevoSketch.crearRectangulo([100, 40],[140, 60])
@@ -98,8 +104,8 @@ nuevoSketch.crearPoligono(10)
 nuevoSketch.crearPoligono(12.5, [20, 100], 8)
 nuevoSketch.crearPoligono(15, [60, 110], 4)
 nuevoSketch.crearPoligono(10, [33, -17], 3)
+"""
 
 # TODO Leer libro de solidworks para basar la documentación de FreeCAD 0.19
 
-"""
 doc.base.recompute()
