@@ -40,6 +40,32 @@ class Dibujo:
 
     def convertirUnidades(self,stringConversion):
         return App.Units.Quantity(stringConversion)
+
+    def datosGeometricosRecta(self, puntoUno, puntoDos):
+        """
+        Dados dos puntos, este metodo devuelve datos geometricos de una recta tales como:
+
+        1. Pendiente
+        2. Angulo en radianes
+        3. Angulo en grados
+        4. Longitud
+        5. Punto Medio
+        """
+        #Pendiente, radianes y grados
+        try:
+            m = (puntoDos[1]-puntoUno[1])/(puntoDos[0]-puntoUno[0])
+            rad = math.atan(m)
+            deg = math.degrees(rad)
+        except:
+            m = "Indeterminada"
+            rad = math.pi
+            deg = 90
+
+        #Longitud
+        l = math.dist(puntoUno, puntoDos)
+        puntoMedio = [((puntoUno[0]+puntoDos[0])/2), ((puntoUno[1]+puntoDos[1])/2)]
+
+        return [m, rad, deg, l, puntoMedio]
     
     def conmutarRestricciones(self):
         for i in range (self.contRestricciones()):
@@ -122,30 +148,71 @@ class Dibujo:
 
         return self
         
-    #TODO Terminar de implementar la teoria del arco para obtener todos sus datos
-    #Actualización: Muy dificil con trigonometria xD mejor hacerlo con relaciones de posicion
+    #COMPLETADO Terminar de implementar la teoria del arco para obtener todos sus datos
+    #Teoria obtenida de:
+    #https://es.wikihow.com/encontrar-la-ecuación-de-una-recta
+    #https://es.wikipedia.org/wiki/Intersección_de_dos_rectas
     def crearArcoTresPuntos(self, puntoInicial = [0, 0], puntoFinal = [0,0], puntoArco = [0,0], constructiva = False):
         """
         Esta herramienta dibuja un arco seleccionando tres puntos: el punto inicial, el punto final y
         un punto entre los dos anteriores
         """
-        arcoBase = self.geometriaArco()
+        #Centros de cada linea, servirán para obtener la ecuacion de la recta tangente a esta linea
+        centroP1P2 = [((puntoInicial[0] + puntoArco[0])/2), ((puntoInicial[1] + puntoArco[1])/2)]
+        centroP2P3 = [((puntoArco[0] + puntoFinal[0])/2), ((puntoArco[1] + puntoFinal[1])/2)]
+
+        #Se obtienela inclinacion en radianes de las dos lineas formadas por los tres puntos
+        rad12 = self.datosGeometricosRecta(puntoInicial,puntoArco)[1]
+        rad23 = self.datosGeometricosRecta(puntoArco,puntoFinal)[1]
+
+        #Datos para la formula de intersección de dos rectas
+        A = math.tan(rad12-(math.pi/2))
+        B = math.tan(rad23-(math.pi/2))
+        C = (-A * centroP1P2[0])  + centroP1P2[1]
+        D = (-B * centroP2P3[0])  + centroP2P3[1]
+
+        posCentro = [(D - C) / (A - B)]
+        posCentro.append(A*posCentro[0]+(-A*centroP1P2[0] +centroP1P2[1]))
+
+        #Obtención de los angulos para el arco
+        geoDataAnguloUno = self.datosGeometricosRecta(posCentro, puntoFinal)
+        geoDataAnguloDos = self.datosGeometricosRecta(posCentro, puntoInicial)
+
+        angulos = [0,0]
+
+        #     X_CENTRO        X_FINAL
+        if (posCentro[0] < puntoFinal[0]):
+            #     Y_CENTRO        Y_FINAL
+            if (posCentro[1] < puntoFinal[1]):
+                angulos[0] = geoDataAnguloUno[1]
+            else:
+                angulos[0] = geoDataAnguloUno[1]
+        else:
+            #     Y_CENTRO        Y_FINAL
+            if (posCentro[1] < puntoFinal[1]):
+                angulos[0] = math.pi+geoDataAnguloUno[1]
+            else:
+                angulos[0] = -(math.pi-geoDataAnguloUno[1])
+
+        #     X_CENTRO        X_INICIAL
+        if (posCentro[0] < puntoInicial[0]):
+            #     Y_CENTRO        Y_INICIAL
+            if (posCentro[1] < puntoInicial[1]):
+                angulos[1] = geoDataAnguloDos[1]
+            else:
+                angulos[1] = geoDataAnguloDos[1]
+        else:
+            #     Y_CENTRO        Y_INICIAL
+            if (posCentro[1] < puntoInicial[1]):
+                angulos[1] = math.pi+geoDataAnguloDos[1]
+            else:
+                angulos[1] = -(math.pi-geoDataAnguloDos[1])
+
+        radio = math.dist(posCentro, puntoFinal)
+
+        #Obtenidos todos los datos se crea el arco en FreeCAD
+        arcoBase = self.geometriaArco(posCentro,radio,angulos)
         self.doc.base.getObject(self.nombre).addGeometry(arcoBase,constructiva)
-
-        contGeometria = self.contGeometria()
-
-        self.bloquearPunto(contGeometria-1, 1, puntoInicial)
-        self.bloquearPunto(contGeometria-1, 2, puntoFinal)
-
-        self.crearPunto(puntoArco)
-        self.bloquearPunto(contGeometria,1,puntoArco)
-
-        self.doc.base.getObject(self.nombre).addConstraint(Sketcher.Constraint('PointOnObject',contGeometria,1,contGeometria-1)) 
-        
-        contRestricciones = self.base.ConstraintCount
-
-        for i in range(1,7):
-            self.doc.base.getObject(self.nombre).delConstraint(contRestricciones - i)
 
         return self
         
@@ -157,7 +224,7 @@ class Dibujo:
 
         return self
 
-    #HACK Metodo de elipse terminado
+    #COMPLETADO Metodo de elipse terminado
     def geometriaElipse(self, centro = [0,0], radioMayor = [0,2], radioMenor = [1,0]):
         return (Part.Ellipse(App.Vector(radioMayor[0], radioMayor[1],0),App.Vector(radioMenor[0], radioMenor[1],0),App.Vector(centro[0],centro[1],0)))
 
@@ -196,14 +263,88 @@ class Dibujo:
 
     def crearPolilinea (self, puntos, constructiva = False):
         """Esta herramiento crea segmentos continuos de lineas conectadas por sus vertices """
-        #TODO: Revisar documentación: https://wiki.freecadweb.org/Sketcher_CreatePolyline
-        contGeometria = self.contGeometria()
-        
-        geoList = [self.geometriaLinea(puntos[i], puntos[i+1]) for i in range(len(puntos)-1)]
-        self.doc.base.getObject(self.nombre).addGeometry(geoList, constructiva)
+        for i in range(len(puntos)-1):
+            if len(puntos[i]) == 2:
+                if len(puntos[i+1]) == 2:
+                    self.crearLinea(puntos[i], puntos[i+1])
 
-        conList = [(Sketcher.Constraint('Coincident', (contGeometria - 1 + i), 2, (contGeometria + i), 1)) for i in range(1,(len(puntos)-1))]   
-        self.doc.base.getObject(self.nombre).addConstraint(conList)
+                    if i != 0:
+                        self.base.addConstraint(Sketcher.Constraint('Coincident', (self.contGeometria()-1), 1, (self.contGeometria() - 2), 2))
+
+                elif len(puntos[i+1]) >= 3:
+                    #Esto quiere decir que el arco será interno (Predeterminado)
+                    if len(puntos[i+1]) == 3:
+                        puntos[i+1].append(False)
+
+                    if type(puntos[i+1][3]) is bool:
+                        geoData = self.datosGeometricosRecta(puntos[i], puntos[i+1][:2])
+
+                        #Para poder crear un arco a partir de dos puntos y su radio, es necesario conocer
+                        #el centro y la pendiente de la linea recta entre los dos puntos (centro y m)
+                        centro = geoData[4]
+                        radioIdeal = geoData[3]/2
+                        
+                        #COMPLETADO Añadir opcion para decidir si el arco es interior o exterior
+                        if puntos[i+1][3] is False:
+                            xTan = centro[0] + ( math.cos(geoData[1] + (math.pi/2)) * (radioIdeal*0.25) )
+                            yTan = centro[1] + ( math.sin(geoData[1] + (math.pi/2)) * (radioIdeal*0.25) )
+                        else:
+                            xTan = centro[0] + ( math.cos(geoData[1] + (math.pi/2)) * (radioIdeal) )
+                            yTan = centro[1] + ( math.sin(geoData[1] + (math.pi/2)) * (radioIdeal) )
+
+                        self.crearArcoTresPuntos(puntos[i], puntos[i+1][:2], [xTan, yTan])
+                        
+                        #Se bloquea los puntos inicial y final del arco para crear la restriccion de radio
+                        self.bloquearPunto(self.contGeometria()-1, 2, puntos[i])
+                        self.bloquearPunto(self.contGeometria()-1, 1, puntos[i+1][:2])                            
+                        self.base.addConstraint(Sketcher.Constraint('Radius',self.contGeometria()-1,puntos[i+1][2]))
+                            
+                        #Se eliminan todas las restricciones
+                        contRestricciones = self.contRestricciones()-1
+                        for i in range(5):
+                            self.base.delConstraint(contRestricciones-i)
+
+                        if i != 0:
+                            self.base.addConstraint(Sketcher.Constraint('Coincident', (self.contGeometria()-1), 2, (self.contGeometria() - 2), 2))
+
+                    else:
+                        print(f"Los puntos {puntos[i+1]} no pueden ser croquizados por esta herramienta")
+                        return self
+
+            elif len(puntos[i]) >= 3:
+
+                if len(puntos[i+1]) == 2:
+                    self.crearLinea(puntos[i][:2], puntos[i+1])
+
+                    if i != 0:
+                        self.base.addConstraint(Sketcher.Constraint('Coincident', (self.contGeometria()-1), 1, (self.contGeometria() - 2), 1))
+
+                elif len(puntos[i+1]) >= 3:
+                    #Interno
+                    centro = (((puntos[i][0]+puntos[i+1][0]) / 2), ((puntos[i][1]+puntos[i+1][1])/2))
+                    
+                    self.crearArco(centro,1,[0, 180])
+
+                    self.bloquearPunto(self.contGeometria()-1, 1, puntos[i+1][:2])
+                    
+                    if i != 0:
+                        self.base.addConstraint(Sketcher.Constraint('Tangent',self.contGeometria()-1,2,self.contGeometria()-2,2))
+                        self.base.delConstraint(self.contRestricciones()-1)
+                        self.base.addConstraint(Sketcher.Constraint('Coincident',(self.contGeometria()-1),1,(self.contGeometria()-2),1))
+                    else:
+                        self.bloquearPunto(self.contGeometria()-1, 1, puntos[i][:2])
+                        self.base.delConstraint(self.contRestricciones()-1)
+
+                    contRestricciones = self.contRestricciones()-1
+                    for i in range(5):
+                        self.base.delConstraint(contRestricciones-i)
+
+                    if i != 0:
+                        self.base.addConstraint(Sketcher.Constraint('Coincident', (self.contGeometria()-1), 2, (self.contGeometria() - 2), 1))
+
+                else:
+                    print(f"Los puntos {puntos[i+1]} no pueden ser croquizados por esta herramienta")
+                    return self
 
         return self
 
@@ -211,7 +352,7 @@ class Dibujo:
         #HACK Agregar opción o crear nuevo metodo para elegir entre poligono 
         # inscrito o circunscrito y tamaño de lados, usar restricciones tangenciales entre dos entidades
         
-        #TODO Corregir las ecuaciones a la unidad para que sea mas rapido el procesamiento
+        #HACK Cambiar las ecuaciones a la unidad para que sea mas rapido el procesamiento
         contGeometria = self.contGeometria()
 
         n = lados - 2
@@ -291,7 +432,9 @@ class Dibujo:
     #COMPLETADO Herramienta de filete completada
     #COMPLETADO Corregir problemas con geometrias que tengan restricciones de posicion
     def chaflan(self, geoIndex = [], longitud = 1):
-        """This tool creates a fillet between two lines joined at one point."""
+        """
+        Esta herramienta crea un chaflan entre dos lineas unidas por un punto
+        """
         contGeometria = self.contGeometria()
 
         #La siguiente parte es para comprobar la continuidad de las lineas que nos indican los indices
