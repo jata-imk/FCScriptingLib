@@ -130,5 +130,6 @@ nuevoSketch.crearPoligono(10, [33, -17], 3)
 """
 
 # TODO Leer libro de solidworks para basar la documentación de FreeCAD 0.19
+# Test para actualizacion del analisis de seguridad de LGMT
 
 doc.base.recompute()
