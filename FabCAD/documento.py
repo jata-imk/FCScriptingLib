@@ -12,14 +12,22 @@ class Documento:
 
         self.nombre = nombre
         self.objetoActivo = ""
+        self.contLineasReferencia = 0
+
+        #HACK Ademas de agregar estos diccionarios preguntar si tambien se quiere que se creen 
+        #atributos para poder acceder a estos objetos
+        #Ejemplo doc.__dict__[nombreDelNuevoObjeto] = nuevoObjeto
         self.piezas = {}
         self.cuerpos = {}
         self.planos = {}
         self.dibujos = {}
+        self.extrusiones = {}
         self.__piezas = {}
         self.__cuerpos = {}
         self.__planos = {}
         self.__dibujos = {}
+        self.__extrusiones = {}
+
         self.base = FreeCAD.getDocument(nombre)
 
     def addExtern(self, tipo, nombre):
@@ -33,6 +41,9 @@ class Documento:
             self.__planos[nombre] = self.base.getObject(nombre)
 
         elif tipo == "Dibujo":
+            self.__dibujos[nombre] = self.base.getObject(nombre)
+
+        elif tipo == "Extrusion":
             self.__dibujos[nombre] = self.base.getObject(nombre)
 
     def nuevaPieza(self, nombrePieza = "SinTitulo"):
@@ -77,7 +88,7 @@ class Documento:
 
     def nuevoSketch(self, nombreDibujo, cuerpo = False, soporte = "XY_Plane", modoDeAdjuncion = "FlatFace"):
         FabCAD.nuevoSketch(doc = self, nombreDibujo = nombreDibujo, cuerpo = cuerpo, soporte = soporte, modoDeAdjuncion = modoDeAdjuncion)
-        return self.dibujos[nombreDibujo]
+        return self
 
     def seleccionarObjeto(self, nombreObjeto):
         """Envoltura para Documento.nombreDiccionario[nombreObjeto]"""
@@ -87,12 +98,13 @@ class Documento:
             try:        
                 #HACK Tratar de ver si tiene sentido retornar el mismo objeto    
                 return objeto[nombreObjeto]
-            except:
+            except KeyError:
                 continue
+
+        print("No se pudo encontrar el objeto solicitado, la llave no existe...")
 
     def hacerActivo(self, objeto):
         self.objetoActivo = extraerString(objeto)
-
         return self
 
     def vincularObjetos(self, objetoBase, objeto):
@@ -101,7 +113,6 @@ class Documento:
         
         #HACK Preguntar si es mejor invocar un error o dejar que solo imprima un mensaje de alerta
         print("No se encontró el objeto indicado")
-
         return self
 
     #TODO Modificar la propiedad __print__ para mostrar un mensaje personalizado al imprimir la clase

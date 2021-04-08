@@ -1,8 +1,9 @@
 import math
 
 import FreeCAD as App
-import Sketcher, Part
+import Sketcher, Part, PartDesign
 
+import FabCAD.base
 from FabCAD.utilidades import extraerString
 
 class Dibujo: 
@@ -19,6 +20,8 @@ class Dibujo:
         else:
             stringCuerpo = extraerString(cuerpo)
        
+        self.padre = stringCuerpo
+        
         #Se crea y agrega el sketch como una propiedad del objeto original
         self.doc.base.getObject(stringCuerpo).newObject('Sketcher::SketchObject',nombreDibujo)
         self.doc.dibujos[nombreDibujo] = self
@@ -56,7 +59,7 @@ class Dibujo:
             m = (puntoDos[1]-puntoUno[1])/(puntoDos[0]-puntoUno[0])
             rad = math.atan(m)
             deg = math.degrees(rad)
-        except:
+        except ZeroDivisionError:
             m = "Indeterminada"
             rad = math.pi
             deg = 90
@@ -301,8 +304,8 @@ class Dibujo:
                             
                         #Se eliminan todas las restricciones
                         contRestricciones = self.contRestricciones()-1
-                        for i in range(5):
-                            self.base.delConstraint(contRestricciones-i)
+                        for j in range(5):
+                            self.base.delConstraint(contRestricciones-j)
 
                         if i != 0:
                             self.base.addConstraint(Sketcher.Constraint('Coincident', (self.contGeometria()-1), 2, (self.contGeometria() - 2), 2))
@@ -312,39 +315,50 @@ class Dibujo:
                         return self
 
             elif len(puntos[i]) >= 3:
-
                 if len(puntos[i+1]) == 2:
                     self.crearLinea(puntos[i][:2], puntos[i+1])
 
                     if i != 0:
                         self.base.addConstraint(Sketcher.Constraint('Coincident', (self.contGeometria()-1), 1, (self.contGeometria() - 2), 1))
 
-                elif len(puntos[i+1]) >= 3:
-                    #Interno
-                    centro = (((puntos[i][0]+puntos[i+1][0]) / 2), ((puntos[i][1]+puntos[i+1][1])/2))
-                    
-                    self.crearArco(centro,1,[0, 180])
+                #Esto quiere decir que el arco será interno (Predeterminado)
+                elif len(puntos[i+1]) == 3:
+                    puntos[i+1].append(False)
 
-                    self.bloquearPunto(self.contGeometria()-1, 1, puntos[i+1][:2])
-                    
-                    if i != 0:
-                        self.base.addConstraint(Sketcher.Constraint('Tangent',self.contGeometria()-1,2,self.contGeometria()-2,2))
-                        self.base.delConstraint(self.contRestricciones()-1)
-                        self.base.addConstraint(Sketcher.Constraint('Coincident',(self.contGeometria()-1),1,(self.contGeometria()-2),1))
+                    if type(puntos[i+1][3]) is bool:
+                        geoData = self.datosGeometricosRecta(puntos[i][:2], puntos[i+1][:2])
+
+                        #Para poder crear un arco a partir de dos puntos y su radio, es necesario conocer
+                        #el centro y la pendiente de la linea recta entre los dos puntos (centro y m)
+                        centro = geoData[4]
+                        radioIdeal = geoData[3]/2
+                        
+                        #COMPLETADO Añadir opcion para decidir si el arco es interior o exterior
+                        if puntos[i+1][3] is False:
+                            xTan = centro[0] + ( math.cos(geoData[1] + (math.pi/2)) * (radioIdeal*0.25) )
+                            yTan = centro[1] + ( math.sin(geoData[1] + (math.pi/2)) * (radioIdeal*0.25) )
+                        else:
+                            xTan = centro[0] + ( math.cos(geoData[1] + (math.pi/2)) * (radioIdeal) )
+                            yTan = centro[1] + ( math.sin(geoData[1] + (math.pi/2)) * (radioIdeal) )
+
+                        self.crearArcoTresPuntos(puntos[i][:2], puntos[i+1][:2], [xTan, yTan])
+                        
+                        #Se bloquea los puntos inicial y final del arco para crear la restriccion de radio
+                        self.bloquearPunto(self.contGeometria()-1, 2, puntos[i][:2])
+                        self.bloquearPunto(self.contGeometria()-1, 1, puntos[i+1][:2])                            
+                        self.base.addConstraint(Sketcher.Constraint('Radius',self.contGeometria()-1,puntos[i+1][2]))
+                            
+                        #Se eliminan todas las restricciones
+                        contRestricciones = self.contRestricciones()-1
+                        for j in range(5):
+                            self.base.delConstraint(contRestricciones-j)
+
+                        if i != 0:
+                            self.base.addConstraint(Sketcher.Constraint('Coincident', (self.contGeometria()-1), 2, (self.contGeometria() - 2), 1))
+
                     else:
-                        self.bloquearPunto(self.contGeometria()-1, 1, puntos[i][:2])
-                        self.base.delConstraint(self.contRestricciones()-1)
-
-                    contRestricciones = self.contRestricciones()-1
-                    for i in range(5):
-                        self.base.delConstraint(contRestricciones-i)
-
-                    if i != 0:
-                        self.base.addConstraint(Sketcher.Constraint('Coincident', (self.contGeometria()-1), 2, (self.contGeometria() - 2), 1))
-
-                else:
-                    print(f"Los puntos {puntos[i+1]} no pueden ser croquizados por esta herramienta")
-                    return self
+                        print(f"Los puntos {puntos[i+1]} no pueden ser croquizados por esta herramienta")
+                        return self
 
         return self
 
@@ -352,7 +366,7 @@ class Dibujo:
         #HACK Agregar opción o crear nuevo metodo para elegir entre poligono 
         # inscrito o circunscrito y tamaño de lados, usar restricciones tangenciales entre dos entidades
         
-        #HACK Cambiar las ecuaciones a la unidad para que sea mas rapido el procesamiento
+        #TODO Cambiar las ecuaciones a la unidad para que sea mas rapido el procesamiento
         contGeometria = self.contGeometria()
 
         n = lados - 2
@@ -397,6 +411,7 @@ class Dibujo:
 
     #COMPLETADO Herramienta de ranura vertical u horizantal agregada
     #COMPLETADO Permitir hacer ranuras con inclinación
+    #TODO Corregir forma en que se crean los angulos (Sacar la tangente inversa)
     def crearRanura(self, puntoInicial, puntoFinal, radio, constructiva = False):
         contGeometria = self.contGeometria()
 
@@ -448,7 +463,7 @@ class Dibujo:
 
         try:
             lineaUno.continuityWith(lineaDos)
-        except:
+        except Part.OCCError:
             lineaUno = self.base.Geometry[geoIndex[1]]
             lineaDos = self.base.Geometry[geoIndex[0]]
             indexUno = geoIndex[1]
@@ -456,9 +471,16 @@ class Dibujo:
 
             try:
                 lineaUno.continuityWith(lineaDos)
-            except:
+            except Part.OCCError:
                 print("Las lineas de los indices ingresados no son continuas, la herramientas de recorte no funciona con lineas discontinuas")
                 return self
+            except TypeError:
+                print("Tipo de dato incorrecto")
+                return self
+
+        except TypeError:
+            print("Tipo de dato incorrecto")
+            return self
 
         self.conmutarRestricciones()
 
@@ -520,17 +542,16 @@ class Dibujo:
     #COMPLETADO Terminar metodo de matriz lineal
     #HACK Preguntar si la distancia debe ser horizontal o normal a los puntos
     #HACK Crear un metodo para creación de matrices polares
-    def matrizLineal(self, elementos, colxfil, distancia, direccion = 0, pivote = None, clonar = False, acotar = False):
+    def matrizLineal(self, elementos, colxfil, distancia, direccion = 0, clonar = False, acotar = False):
         """
-        Agrega una matriz de tamaño [filas x columnas] donde cada elemento es una copia de la geometria 
-        seleccionada, desplazada en X y Y una determinada distancia en un cierto angulo dado
+        Crea una matriz de tamaño [filas x columnas] de la geometria seleccionada, desplazada una  cierta 
+        distancia en un cierto angulo dado tomando como referencia el ultimo punto de la lista de elementos
 
         Parametros:
         elementos: Puede ser un unico entero o una lista de enteros que indican el indice de la geometria
         colxfil: Si solo se proporciona un entero se tomará como el numero de filas, de lo contrario proporcionar una lista [filas, columnas]
         direccion: Angulo con respecto al eje horizontal sobre el cual se creará la matriz, por defecto en grados, si se quiere especificar otra unidad debe ingresar una cadena de texto, ejemplo: '45 rad'
-        distancia: Separacion horizontañ entre elementos de la matriz con respecto al punto pivote proporcionado
-        pivote: Punto base sobre el cual se iniciara la separación de cada elemento de la matriz
+        distancia: Separacion horizontal entre elementos de la matriz
         clonar: Si este parametro es True los elementos de la matriz cambiaran si la geometria original cambia, de lo contrario cada elemento será independiente
         acotar: Si es True, se incluirá una restricción de longitud entre los pivotes de cada elemento
         """
@@ -569,10 +590,6 @@ class Dibujo:
             vectorX = self.convertirUnidades(f"cos({direccion})*{distancia[0]}")
             vectorY = self.convertirUnidades(f"sin({direccion})*{distancia[0]}")
 
-        #Ahora se comprueba si se especifica un punto pivote, de lo contrario se usa el primer punto del primer elemento
-        if pivote is None:
-            pivote = [elementos[0], 1]
-
         #Funcion de FreeCAD para la creaciones de matrices lineales
         self.base.addRectangularArray(elementos, App.Vector(vectorX, vectorY, 0), clonar, colxfil[0], colxfil[1], acotar, distancia[1])
 
@@ -600,3 +617,18 @@ class Dibujo:
         - where two lines end near each other and need to be joined - a coincident constraint 
         on their end-points will close the gap.
         """
+
+    def extrusionAditiva(self, nombreExtrusion = "Pad", longitud = 10, invertido = 0, planoMedio = 0):
+        FabCAD.extrusionAditiva(self.doc, self.padre, self.nombre, nombreExtrusion, longitud, invertido, planoMedio)
+
+        return self
+
+    def extrusionDeVaciado(self, nombreExtrusion = "Pocket", longitud = 10, invertido = 0, planoMedio = 0):
+        FabCAD.extrusionDeVaciado(self.doc, self.padre, self.nombre, nombreExtrusion, longitud, invertido, planoMedio)
+
+        return self
+
+    def revolucionAditiva(self, nombreExtrusion = "Revolucion", angulo = 360, invertido = 0, planoMedio = 0):
+        FabCAD.revolucionAditiva(doc = self.doc, padreBase = self.padre, base = self.nombre, nombreExtrusion = nombreExtrusion, angulo = angulo, invertido = invertido, planoMedio = planoMedio)
+
+        return self

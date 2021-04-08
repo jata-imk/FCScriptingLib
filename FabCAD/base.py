@@ -34,9 +34,21 @@ def nuevoCuerpo(doc, nombreCuerpo):
 def crearPlano(doc, nombrePlano, soporte = "XY_Plane", cuerpo = False, modoDeAdjuncion = "FlatFace", offsets = [0, 0, 0], rotaciones = [0, 0, 0], invertido = False):
      return Parte3D(doc).crearPlano(nombrePlano, soporte, cuerpo, modoDeAdjuncion, offsets, rotaciones, invertido)
 
-def nuevoSketch(nombreDibujo, doc, cuerpo, soporte = "XY_Plane", modoDeAdjuncion = "FlatFace"):
+def extrusionAditiva(doc, padreBase = None, base = None, nombreExtrusion = "Pad", longitud = 10, invertido = 0, planoMedio = 0):
+     return Parte3D(doc).extrusionAditiva(padreBase, base, nombreExtrusion, longitud, invertido, planoMedio)
+
+def extrusionDeVaciado(doc, padreBase = None, base = None, nombreExtrusion = "Pocket", longitud = 10, invertido = 0, planoMedio = 0):
+     return Parte3D(doc).extrusionDeVaciado(padreBase, base, nombreExtrusion, longitud, invertido, planoMedio)
+
+def revolucionAditiva(doc, padreBase = None, base = None, nombreExtrusion = "Revolucion", angulo = 360, invertido = 0, planoMedio = 0):
+     return Parte3D(doc).revolucionAditiva(padreBase, base, nombreExtrusion, angulo, invertido, planoMedio)
+
+def nuevoSketch(nombreDibujo, doc, cuerpo = False, soporte = "XY_Plane", modoDeAdjuncion = "FlatFace"):
      return Dibujo(nombreDibujo, doc, cuerpo, soporte, modoDeAdjuncion)
 
 
 #TODO implementar lista de ultimos objetos creados para poder encadenar los metodos de clase
 #TODO Añadir ejemplos de uso en la libreta de Jupyter de los metodos del Sketcher
+
+#Modulos a importan cuando se haga un from xxx import __all__ (Convención)
+__all__ = ["nuevoDocumento", "nuevaPieza", "nuevoCuerpo", "crearPlano", "extrusionAditiva", "extrusionDeVaciado", "revolucionAditiva","nuevoSketch"]
