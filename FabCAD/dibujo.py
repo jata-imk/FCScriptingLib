@@ -1,7 +1,7 @@
 import math
 
 import FreeCAD as App
-import Sketcher, Part, PartDesign
+import Sketcher, Part
 
 import FabCAD.base
 from FabCAD.utilidades import extraerString
@@ -183,19 +183,32 @@ class Dibujo:
 
         angulos = [0,0]
 
+        ##############################################################
+        ####################     SEPARADOR :D    #####################
+        ##############################################################
+
         #     X_CENTRO        X_FINAL
         if (posCentro[0] < puntoFinal[0]):
             #     Y_CENTRO        Y_FINAL
             if (posCentro[1] < puntoFinal[1]):
                 angulos[0] = geoDataAnguloUno[1]
             else:
-                angulos[0] = geoDataAnguloUno[1]
+                #   X_FINAL           X_ARCO
+                if (puntoFinal[0] < puntoArco[0]):
+                    angulos[0] = geoDataAnguloUno[1]
+                else:
+                    angulos[0] = ((3*math.pi)/2) + geoDataAnguloUno[1]
         else:
             #     Y_CENTRO        Y_FINAL
             if (posCentro[1] < puntoFinal[1]):
                 angulos[0] = math.pi+geoDataAnguloUno[1]
             else:
                 angulos[0] = -(math.pi-geoDataAnguloUno[1])
+
+        
+        ##############################################################
+        ####################     SEPARADOR :D    #####################
+        ##############################################################
 
         #     X_CENTRO        X_INICIAL
         if (posCentro[0] < puntoInicial[0]):
@@ -207,7 +220,16 @@ class Dibujo:
         else:
             #     Y_CENTRO        Y_INICIAL
             if (posCentro[1] < puntoInicial[1]):
-                angulos[1] = math.pi+geoDataAnguloDos[1]
+                #TODO Agregar esta condicional en todos las demas opciones
+                #   X_INICIAL           X_ARCO
+                if (puntoInicial[0] < puntoArco[0]):
+                    #     X_FINAL        X_ARCO
+                    if (puntoFinal[0] < puntoArco[0]):
+                        angulos[1] = math.pi+geoDataAnguloDos[1]
+                    else:
+                        angulos[1] = ((3*math.pi)/2)+geoDataAnguloDos[1]
+                else:
+                    angulos[1] = ((3*math.pi)/2)+geoDataAnguloDos[1]
             else:
                 angulos[1] = -(math.pi-geoDataAnguloDos[1])
 
@@ -237,6 +259,8 @@ class Dibujo:
 
         return self
 
+    #TODO Crear metodo para crear rectangulo de tipo centroEsquina
+    #TODO Permitir hacer rectangulos con inclinacion
     def crearRectangulo(self, puntoInicial = [0,0], puntoFinal = [0, 0]):
         """Dibuja un rectangulo dados dos puntos"""
         contGeometria = self.contGeometria()
@@ -264,6 +288,7 @@ class Dibujo:
 
         return self
 
+    #TODO Corregir la direccion en que se genera el arco
     def crearPolilinea (self, puntos, constructiva = False):
         """Esta herramiento crea segmentos continuos de lineas conectadas por sus vertices """
         for i in range(len(puntos)-1):
@@ -289,17 +314,22 @@ class Dibujo:
                         
                         #COMPLETADO Añadir opcion para decidir si el arco es interior o exterior
                         if puntos[i+1][3] is False:
-                            xTan = centro[0] + ( math.cos(geoData[1] + (math.pi/2)) * (radioIdeal*0.25) )
-                            yTan = centro[1] + ( math.sin(geoData[1] + (math.pi/2)) * (radioIdeal*0.25) )
+                                xTan = centro[0] + ( math.cos(geoData[1] + (math.pi/2)) * (radioIdeal*0.25) )
+                                yTan = centro[1] + ( math.sin(geoData[1] + (math.pi/2)) * (radioIdeal*0.25) )
                         else:
-                            xTan = centro[0] + ( math.cos(geoData[1] + (math.pi/2)) * (radioIdeal) )
-                            yTan = centro[1] + ( math.sin(geoData[1] + (math.pi/2)) * (radioIdeal) )
+                                xTan = centro[0] - ( math.cos(geoData[1] + (math.pi/2)) * (radioIdeal*0.25) )
+                                yTan = centro[1] - ( math.sin(geoData[1] + (math.pi/2)) * (radioIdeal*0.25) )
 
                         self.crearArcoTresPuntos(puntos[i], puntos[i+1][:2], [xTan, yTan])
                         
                         #Se bloquea los puntos inicial y final del arco para crear la restriccion de radio
-                        self.bloquearPunto(self.contGeometria()-1, 2, puntos[i])
-                        self.bloquearPunto(self.contGeometria()-1, 1, puntos[i+1][:2])                            
+                        if puntos[i+1][3] is False:
+                            self.bloquearPunto(self.contGeometria()-1, 2, puntos[i])
+                            self.bloquearPunto(self.contGeometria()-1, 1, puntos[i+1][:2])
+                        else:
+                            self.bloquearPunto(self.contGeometria()-1, 1, puntos[i])
+                            self.bloquearPunto(self.contGeometria()-1, 2, puntos[i+1][:2])
+
                         self.base.addConstraint(Sketcher.Constraint('Radius',self.contGeometria()-1,puntos[i+1][2]))
                             
                         #Se eliminan todas las restricciones
@@ -308,7 +338,10 @@ class Dibujo:
                             self.base.delConstraint(contRestricciones-j)
 
                         if i != 0:
-                            self.base.addConstraint(Sketcher.Constraint('Coincident', (self.contGeometria()-1), 2, (self.contGeometria() - 2), 2))
+                            if puntos[i+1][3] is False:
+                                self.base.addConstraint(Sketcher.Constraint('Coincident', (self.contGeometria()-1), 2, (self.contGeometria() - 2), 2))
+                            else:
+                                self.base.addConstraint(Sketcher.Constraint('Coincident', (self.contGeometria()-1), 1, (self.contGeometria() - 2), 2))
 
                     else:
                         print(f"Los puntos {puntos[i+1]} no pueden ser croquizados por esta herramienta")
@@ -318,12 +351,20 @@ class Dibujo:
                 if len(puntos[i+1]) == 2:
                     self.crearLinea(puntos[i][:2], puntos[i+1])
 
-                    if i != 0:
-                        self.base.addConstraint(Sketcher.Constraint('Coincident', (self.contGeometria()-1), 1, (self.contGeometria() - 2), 1))
+                    if len(puntos[i]) == 3:
+                        puntos[i].append(False)
+
+                    if puntos[i][3] is False:
+                        if i != 0:
+                            self.base.addConstraint(Sketcher.Constraint('Coincident', (self.contGeometria()-1), 1, (self.contGeometria() - 2), 1))
+                    else:
+                        if i != 0:
+                            self.base.addConstraint(Sketcher.Constraint('Coincident', (self.contGeometria()-1), 1, (self.contGeometria() - 2), 2))
 
                 #Esto quiere decir que el arco será interno (Predeterminado)
-                elif len(puntos[i+1]) == 3:
-                    puntos[i+1].append(False)
+                elif len(puntos[i+1]) >= 3:
+                    if len(puntos[i+1]) == 3:
+                        puntos[i+1].append(False)
 
                     if type(puntos[i+1][3]) is bool:
                         geoData = self.datosGeometricosRecta(puntos[i][:2], puntos[i+1][:2])
@@ -338,14 +379,19 @@ class Dibujo:
                             xTan = centro[0] + ( math.cos(geoData[1] + (math.pi/2)) * (radioIdeal*0.25) )
                             yTan = centro[1] + ( math.sin(geoData[1] + (math.pi/2)) * (radioIdeal*0.25) )
                         else:
-                            xTan = centro[0] + ( math.cos(geoData[1] + (math.pi/2)) * (radioIdeal) )
-                            yTan = centro[1] + ( math.sin(geoData[1] + (math.pi/2)) * (radioIdeal) )
+                            xTan = centro[0] - ( math.cos(geoData[1] + (math.pi/2)) * (radioIdeal*0.25) )
+                            yTan = centro[1] - ( math.sin(geoData[1] + (math.pi/2)) * (radioIdeal*0.25) )
 
                         self.crearArcoTresPuntos(puntos[i][:2], puntos[i+1][:2], [xTan, yTan])
                         
                         #Se bloquea los puntos inicial y final del arco para crear la restriccion de radio
-                        self.bloquearPunto(self.contGeometria()-1, 2, puntos[i][:2])
-                        self.bloquearPunto(self.contGeometria()-1, 1, puntos[i+1][:2])                            
+                        if puntos[i+1][3] is False:
+                            self.bloquearPunto(self.contGeometria()-1, 2, puntos[i][:2])
+                            self.bloquearPunto(self.contGeometria()-1, 1, puntos[i+1][:2])  
+                        else:
+                            self.bloquearPunto(self.contGeometria()-1, 1, puntos[i][:2])
+                            self.bloquearPunto(self.contGeometria()-1, 2, puntos[i+1][:2])
+
                         self.base.addConstraint(Sketcher.Constraint('Radius',self.contGeometria()-1,puntos[i+1][2]))
                             
                         #Se eliminan todas las restricciones
@@ -354,7 +400,16 @@ class Dibujo:
                             self.base.delConstraint(contRestricciones-j)
 
                         if i != 0:
-                            self.base.addConstraint(Sketcher.Constraint('Coincident', (self.contGeometria()-1), 2, (self.contGeometria() - 2), 1))
+                            if puntos[i+1][3] is False:
+                                if puntos[i][3] is False:
+                                    self.base.addConstraint(Sketcher.Constraint('Coincident', (self.contGeometria()-1), 2, (self.contGeometria() - 2), 1))
+                                else:
+                                    self.base.addConstraint(Sketcher.Constraint('Coincident', (self.contGeometria()-1), 2, (self.contGeometria() - 2), 2))
+                            else:
+                                if puntos[i][3] is False:
+                                    self.base.addConstraint(Sketcher.Constraint('Coincident', (self.contGeometria()-1), 1, (self.contGeometria() - 2), 1))
+                                else:
+                                    self.base.addConstraint(Sketcher.Constraint('Coincident', (self.contGeometria()-1), 1, (self.contGeometria() - 2), 2))
 
                     else:
                         print(f"Los puntos {puntos[i+1]} no pueden ser croquizados por esta herramienta")
@@ -595,16 +650,18 @@ class Dibujo:
 
         return self
 
+    #TODO Terminar metodo de copiado
     def copiar(self):
         print("Todavia no existo :D")
 
         return self
-
+    #TODO Terminar metodo de clonacion
     def clonar(self):
         print("Todavia no existo :D")
 
         return self
 
+    #TODO
     def seleccionarGeometria(self):
         #Idea de implementación: Establecer un punto desde el cual la geometria será seleccionada
         print("Tampoco existo :D")
@@ -618,17 +675,57 @@ class Dibujo:
         on their end-points will close the gap.
         """
 
+    #################################
+    ### OPERACIONES ENTRE CROQUIS ###
+    #################################
+
+    def copiarGeometriaCroquis(self, croquisReferencia, constructiva = False):
+        """Tal como su nombre lo dice, copia tal cual la geometria de otro croquis :D"""
+        #Se extrae el string del croquis mediante un metodo que acepta varios tipos de clases
+        stringCroquis = extraerString(croquisReferencia)
+
+        #Se aplica el metodo
+        self.base.carbonCopy(stringCroquis,constructiva)
+
+        return self
+
+
+    #################################
+    ######## OPERACIONES 3D #########
+    #################################
+
     def extrusionAditiva(self, nombreExtrusion = "Pad", longitud = 10, invertido = 0, planoMedio = 0):
-        FabCAD.extrusionAditiva(self.doc, self.padre, self.nombre, nombreExtrusion, longitud, invertido, planoMedio)
+        FabCAD.extrusionAditiva(doc=self.doc, croquis=self.nombre,nombreExtrusion=nombreExtrusion,longitud=longitud,invertido=invertido,planoMedio=planoMedio)
 
         return self
 
     def extrusionDeVaciado(self, nombreExtrusion = "Pocket", longitud = 10, invertido = 0, planoMedio = 0):
-        FabCAD.extrusionDeVaciado(self.doc, self.padre, self.nombre, nombreExtrusion, longitud, invertido, planoMedio)
+        FabCAD.extrusionDeVaciado(doc=self.doc,croquis=self.nombre,nombreExtrusion=nombreExtrusion,longitud=longitud,invertido=invertido,planoMedio=planoMedio)
 
         return self
 
     def revolucionAditiva(self, nombreExtrusion = "Revolucion", angulo = 360, invertido = 0, planoMedio = 0):
-        FabCAD.revolucionAditiva(doc = self.doc, padreBase = self.padre, base = self.nombre, nombreExtrusion = nombreExtrusion, angulo = angulo, invertido = invertido, planoMedio = planoMedio)
+        FabCAD.revolucionAditiva(doc=self.doc,croquis=self.nombre,nombreExtrusion=nombreExtrusion,angulo=angulo,invertido=invertido,planoMedio=planoMedio)
 
         return self
+
+    def revolucionDeVaciado(self, nombreExtrusion = "RevDeVaciado", angulo = 360, invertido = 0, planoMedio = 0):
+        FabCAD.revolucionDeVaciado(doc=self.doc,croquis=self.nombre,nombreExtrusion=nombreExtrusion,angulo=angulo,invertido=invertido,planoMedio=planoMedio)
+
+        return self
+
+    def recubrir(self, croquisParaRecubrir, nombreExtrusion = "extrusionRecubierta"):
+        FabCAD.recubrir(doc=self.doc,croquisInicial=self.nombre,croquisParaRecubrir=croquisParaRecubrir,nombreExtrusion=nombreExtrusion)
+
+        return self
+
+    def recubrirCorte(self, croquisParaRecubrir, nombreExtrusion = "corteRecubierto"):
+        FabCAD.recubrirCorte(doc=self.doc,croquisInicial=self.nombre,croquisParaRecubrir=croquisParaRecubrir,nombreExtrusion=nombreExtrusion)
+        
+        return self
+    
+    def salienteConducida(self, croquisGuia, nombreExtrusion = "salienteConducida"):
+        FabCAD.salienteConducida(doc=self.doc, croquisPerfil=self.nombre, croquisGuia=croquisGuia, nombreExtrusion=nombreExtrusion)
+
+    def corteConducido(self, croquisGuia, nombreExtrusion = "corteConducido"):
+        FabCAD.corteConducido(doc=self.doc, croquisPerfil=self.nombre, croquisGuia=croquisGuia, nombreExtrusion=nombreExtrusion)

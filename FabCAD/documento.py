@@ -13,6 +13,7 @@ class Documento:
         self.nombre = nombre
         self.objetoActivo = ""
         self.contLineasReferencia = 0
+        self.contPlanosReferencia = 0
 
         #HACK Ademas de agregar estos diccionarios preguntar si tambien se quiere que se creen 
         #atributos para poder acceder a estos objetos
@@ -30,6 +31,7 @@ class Documento:
 
         self.base = FreeCAD.getDocument(nombre)
 
+    #TODO Eliminar metodo
     def addExtern(self, tipo, nombre):
         if tipo == "Pieza":
             self.__piezas[nombre] = self.base.getObject(nombre)
@@ -92,7 +94,7 @@ class Documento:
 
     def seleccionarObjeto(self, nombreObjeto):
         """Envoltura para Documento.nombreDiccionario[nombreObjeto]"""
-        dirObjetos = [self.piezas, self.cuerpos, self.planos, self.dibujos]
+        dirObjetos = [self.piezas, self.cuerpos, self.planos, self.dibujos, self.extrusiones]
 
         for objeto in dirObjetos:
             try:        
@@ -104,6 +106,7 @@ class Documento:
         print("No se pudo encontrar el objeto solicitado, la llave no existe...")
 
     def hacerActivo(self, objeto):
+        """Cambia la propiedad objetoActivo de un objeto de la clase Documento"""
         self.objetoActivo = extraerString(objeto)
         return self
 
@@ -116,6 +119,5 @@ class Documento:
         return self
 
     #TODO Modificar la propiedad __print__ para mostrar un mensaje personalizado al imprimir la clase
-
     def __setattr__(self, name, value):
         self.__dict__[name] = value

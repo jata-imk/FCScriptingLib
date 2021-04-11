@@ -34,15 +34,32 @@ def nuevoCuerpo(doc, nombreCuerpo):
 def crearPlano(doc, nombrePlano, soporte = "XY_Plane", cuerpo = False, modoDeAdjuncion = "FlatFace", offsets = [0, 0, 0], rotaciones = [0, 0, 0], invertido = False):
      return Parte3D(doc).crearPlano(nombrePlano, soporte, cuerpo, modoDeAdjuncion, offsets, rotaciones, invertido)
 
-def extrusionAditiva(doc, padreBase = None, base = None, nombreExtrusion = "Pad", longitud = 10, invertido = 0, planoMedio = 0):
-     return Parte3D(doc).extrusionAditiva(padreBase, base, nombreExtrusion, longitud, invertido, planoMedio)
+def extrusionAditiva(doc, croquis = None, nombreExtrusion = "Pad", longitud = 10, invertido = 0, planoMedio = 0):
+     return Parte3D(doc).extrusionAditiva(croquis, nombreExtrusion, longitud, invertido, planoMedio)
 
-def extrusionDeVaciado(doc, padreBase = None, base = None, nombreExtrusion = "Pocket", longitud = 10, invertido = 0, planoMedio = 0):
-     return Parte3D(doc).extrusionDeVaciado(padreBase, base, nombreExtrusion, longitud, invertido, planoMedio)
+def extrusionDeVaciado(doc, croquis = None, nombreExtrusion = "Pocket", longitud = 10, invertido = 0, planoMedio = 0):
+     return Parte3D(doc).extrusionDeVaciado(croquis, nombreExtrusion, longitud, invertido, planoMedio)
 
-def revolucionAditiva(doc, padreBase = None, base = None, nombreExtrusion = "Revolucion", angulo = 360, invertido = 0, planoMedio = 0):
-     return Parte3D(doc).revolucionAditiva(padreBase, base, nombreExtrusion, angulo, invertido, planoMedio)
+def revolucionAditiva(doc, croquis = None, nombreExtrusion = "Revolucion", angulo = 360, invertido = 0, planoMedio = 0):
+     return Parte3D(doc).revolucionAditiva(croquis, nombreExtrusion, angulo, invertido, planoMedio)
 
+def revolucionDeVaciado(doc, croquis = None, nombreExtrusion = "RevDeVaciado", angulo = 360, invertido = 0, planoMedio = 0):
+     return Parte3D(doc).revolucionDeVaciado(croquis, nombreExtrusion, angulo, invertido, planoMedio)
+
+def recubrir(doc, croquisInicial, croquisParaRecubrir, nombreExtrusion = "extrusionRecubierta"):
+     return Parte3D(doc).recubrir(croquisInicial=croquisInicial, croquisParaRecubrir=croquisParaRecubrir, nombreExtrusion=nombreExtrusion)
+
+def recubrirCorte(doc, croquisInicial, croquisParaRecubrir, nombreExtrusion = "corteRecubierto"):
+     return Parte3D(doc).recubrirCorte(croquisInicial=croquisInicial, croquisParaRecubrir=croquisParaRecubrir, nombreExtrusion=nombreExtrusion)
+
+def salienteConducida(doc, croquisPerfil, croquisGuia, nombreExtrusion='salienteConducida'):
+     return Parte3D(doc).salienteConducida(croquisPerfil=croquisPerfil, croquisGuia=croquisGuia, nombreExtrusion=nombreExtrusion)
+
+
+def corteConducido(doc, croquisPerfil, croquisGuia, nombreExtrusion='corteConducido'):
+     return Parte3D(doc).corteConducido(croquisPerfil=croquisPerfil, croquisGuia=croquisGuia, nombreExtrusion=nombreExtrusion)
+
+#FIXME No permitir hacer croquis si no pertenecen a un cuerpo o pieza
 def nuevoSketch(nombreDibujo, doc, cuerpo = False, soporte = "XY_Plane", modoDeAdjuncion = "FlatFace"):
      return Dibujo(nombreDibujo, doc, cuerpo, soporte, modoDeAdjuncion)
 
@@ -51,4 +68,4 @@ def nuevoSketch(nombreDibujo, doc, cuerpo = False, soporte = "XY_Plane", modoDeA
 #TODO Añadir ejemplos de uso en la libreta de Jupyter de los metodos del Sketcher
 
 #Modulos a importan cuando se haga un from xxx import __all__ (Convención)
-__all__ = ["nuevoDocumento", "nuevaPieza", "nuevoCuerpo", "crearPlano", "extrusionAditiva", "extrusionDeVaciado", "revolucionAditiva","nuevoSketch"]
+__all__ = ["nuevoDocumento", "nuevaPieza", "nuevoCuerpo", "crearPlano", "extrusionAditiva", "extrusionDeVaciado", "revolucionAditiva", "revolucionDeVaciado", "recubrir", "recubrirCorte", "salienteConducida", "corteConducido", "nuevoSketch"]
