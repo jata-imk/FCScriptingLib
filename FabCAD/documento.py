@@ -3,7 +3,7 @@ import FreeCAD
 import FabCAD.base
 from FabCAD.utilidades import extraerString
 
-#FIXME Agregar metodo para seleccionar objetos
+#COMPLETADO Agregar metodo para seleccionar objetos
 class Documento:
     def __init__(self, nombre, etiqueta, oculto, temporal):
         """Constructor de la clase Documento"""
@@ -98,7 +98,6 @@ class Documento:
 
         for objeto in dirObjetos:
             try:        
-                #HACK Tratar de ver si tiene sentido retornar el mismo objeto    
                 return objeto[nombreObjeto]
             except KeyError:
                 continue

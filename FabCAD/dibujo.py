@@ -14,6 +14,9 @@ class Dibujo:
         """Constructor de la clase Dibujo"""
         self.doc = doc
         self.nombre = nombreDibujo
+        self.indicesGeometria = 0
+        self.modo = "puntos"
+        self.informes = False
 
         if cuerpo is False:
             stringCuerpo = self.doc.objetoActivo
@@ -32,8 +35,12 @@ class Dibujo:
         self.base.Support = [(self.doc.base.getObject(extraerString(soporte)),'')]
         self.base.MapMode = modoDeAdjuncion
 
-    def listaGeometria(self):
-        return self.base.Geometry
+    def Geometria(self, indices = None):
+        if indices is None:
+            return self.base.Geometry
+        else:
+            lista = [self.base.Geometry[indiceGeometria] for indiceGeometria in indices]
+            return lista
 
     def contGeometria(self):
         return self.base.GeometryCount
@@ -85,9 +92,26 @@ class Dibujo:
             self.base.delConstraint(self.base.ConstraintCount-1)
 
         return self
+
+    def agregarGeometria(self, geometria, constructiva=False):
+        if type(geometria) is not list:
+            geometria = [geometria]
+
+        return self.base.addGeometry(geometria,constructiva)
+
+    def eliminarGeometria(self, geometria):
+        if type(geometria) is not list:
+            geometria = [geometria]
+
+            self.base.delGeometries(geometria)
+
+        return self
+
+    def crearVector(self, x=0, y=0, z=0):
+        return App.Vector(x,y,z)
         
     def geometriaPunto(self, coordenadas = [0,0]):
-        return Part.Point(App.Vector(coordenadas[0],coordenadas[1],0))
+        return Part.Point(self.crearVector(coordenadas[0], coordenadas[1]))
 
     def crearPunto(self, coordenadas = [0,0]):
         """
@@ -95,17 +119,56 @@ class Dibujo:
         constructing geometry elements. The point is always an construction element
         """
         geometriaPunto = self.geometriaPunto(coordenadas)
-        self.doc.base.getObject(self.nombre).addGeometry(geometriaPunto)
+        self.agregarGeometria(geometriaPunto)
 
         return self
 
-    def geometriaLinea(self, puntoInicial = ['x','y'], puntoFinal = ['x','y']):
-        return Part.LineSegment(App.Vector(puntoInicial[0],puntoInicial[1],0),App.Vector(puntoFinal[0],puntoFinal[1]))
+    def geometriaLinea(self, puntoInicial = ['x','y'], puntoFinal = ['x','y'], ):
+        return Part.LineSegment(self.crearVector(puntoInicial[0],puntoInicial[1]),self.crearVector(puntoFinal[0],puntoFinal[1]))
     
-    def crearLinea(self, puntoInicial = ['x','y'], puntoFinal = ['x','y'], constructiva=False):
-        """Dibuja una linea dados dos puntos"""
-        geometriaLinea = self.geometriaLinea(puntoInicial, puntoFinal)
-        self.doc.base.getObject(self.nombre).addGeometry(geometriaLinea, constructiva)
+    def crearLinea(self, puntoInicial = ['x','y'], puntoFinal = ['punto/distancia','punto/angulo'], constructiva=False):
+        """Dibuja una linea dados dos puntos o bien dados un punto y un vector"""
+        if self.informes:
+            print(f"Modo: {self.modo}\nDatos de entrada: puntoInicial={puntoInicial}, puntoFinal={puntoFinal}, constructiva={constructiva}")
+        
+        indices = self.seleccionarGeometria(referencia=True)
+
+        if self.modo == "puntos":
+            geometriaLinea = self.geometriaLinea(puntoInicial, puntoFinal)
+        elif self.modo == "punto-vector":
+            puntoFinal[1] = str(puntoFinal[1]).strip().replace(" ", "")
+            
+            if puntoFinal[1][0] == "-":
+                signo = -1
+                puntoFinal[1] = puntoFinal[1][1:]
+            else:
+                signo = 1
+
+            if puntoFinal[1].isdigit():
+                #Esta condicion quiere decir que solo se enviaron numeros sin especificar unidad de angulo
+                #Por defecto se ponen los angulos en grados
+                n = math.radians(float(puntoFinal[1])*signo)
+            else:
+                #Esta condicion quiere decir que se especifica la unidad del angulo
+                unidad = puntoFinal[1][-3:]
+                n = float(puntoFinal[1][:-3]*signo)
+
+                if unidad == "rad":
+                    n = n
+                else:
+                    n = math.radians(n)
+                
+            geometriaLinea = self.geometriaLinea(puntoInicial, 
+                                                 [(puntoInicial[0]+(math.cos(n)*puntoFinal[0])),
+                                                  (puntoInicial[1]+(math.sin(n)*puntoFinal[0]))]
+                                                )
+
+        self.agregarGeometria(geometriaLinea, constructiva)
+
+        indices = self.seleccionarGeometria(referencia=True)
+
+        if self.informes:
+            print(f"Salida: Indice: {self.contGeometria()}, {self.base.Geometry[indices[-1]]}\n")
 
         return self
 
@@ -117,14 +180,16 @@ class Dibujo:
         """
         contGeometria = self.contGeometria()
 
-        esquinaOpuestaX = centro[0] - (esquina[0] - centro[0])
-        esquinaOpuestaY = centro[1] - (esquina[1] - centro[1])
+        centro = self.crearVector(centro)
 
-        geometriaLinea = self.geometriaLinea([esquinaOpuestaX, esquinaOpuestaY], esquina)
+        puntoUno = self.crearVector(esquina)
+        puntoDos = centro - puntoUno
+
+        geometriaLinea = self.geometriaLinea(puntoUno, puntoDos)
         geometriaPunto = self.geometriaPunto(centro)
 
-        self.doc.base.getObject(self.nombre).addGeometry(geometriaLinea, constructiva)
-        self.doc.base.getObject(self.nombre).addGeometry(geometriaPunto, False)
+        self.agregarGeometria(geometriaLinea, constructiva)
+        self.agregarGeometria(geometriaPunto)
 
         self.doc.base.getObject(self.nombre).addConstraint(Sketcher.Constraint('Symmetric',contGeometria,1,contGeometria,2,contGeometria + 1,1))
 
@@ -132,10 +197,10 @@ class Dibujo:
         
     #COMPLETADO Eliminar el parametro 'constructiva' de los metodos de las geometrias
     def geometriaCirculo(self, centro = [0 , 0], radio = 0):
-        return (Part.Circle(App.Vector(centro[0], centro[1], 0),App.Vector(0,0,1), radio))
+        return Part.Circle(self.crearVector(centro[0], centro[1], 0),self.crearVector(0,0,1), radio)
 
     def geometriaArco(self, centro = [0, 0], radio = 1, angulos = [0,0]):
-        return (Part.ArcOfCircle(Part.Circle(App.Vector(centro[0],centro[1],0),App.Vector(0,0,1),radio),angulos[0],angulos[1]))
+        return Part.ArcOfCircle(self.geometriaCirculo(centro,radio),angulos[0],angulos[1])
 
     def crearArco(self, centro = [0, 0], radio = 1, angulos = [0,90], unidadMedida = "deg", constructiva = False):
         """
@@ -144,10 +209,10 @@ class Dibujo:
         """
         #Conversión de grados a radianes por defecto activada
         if unidadMedida == "deg":
-            angulos = [self.convertirUnidades(f"({angulo}*pi/180) deg") for angulo in angulos]
+            angulos = [math.radians(angulo) for angulo in angulos]
 
         geometriaArco = self.geometriaArco(centro,radio,angulos)
-        self.doc.base.getObject(self.nombre).addGeometry(geometriaArco,constructiva)
+        self.agregarGeometria(geometriaArco,constructiva)
 
         return self
         
@@ -245,33 +310,33 @@ class Dibujo:
         """Dibuja una circulo con los datos de centro y longitud de radio"""
         geometriaCirculo = self.geometriaCirculo(centro, radio)
 
-        self.doc.base.getObject(self.nombre).addGeometry(geometriaCirculo,constructiva)
+        self.agregarGeometria(geometriaCirculo,constructiva)
 
         return self
 
     #COMPLETADO Metodo de elipse terminado
     def geometriaElipse(self, centro = [0,0], radioMayor = [0,2], radioMenor = [1,0]):
-        return (Part.Ellipse(App.Vector(radioMayor[0], radioMayor[1],0),App.Vector(radioMenor[0], radioMenor[1],0),App.Vector(centro[0],centro[1],0)))
+        return Part.Ellipse(self.crearVector(radioMayor[0], radioMayor[1]),self.crearVector(radioMenor[0], radioMenor[1]),self.crearVector(centro[0],centro[1]))
 
     def crearElipse(self, centro = [0,0], radioMayor = [0,2], radioMenor = [1,0], constructiva = False):
         geometriaElipse = self.geometriaElipse(centro, radioMayor, radioMenor)
-        self.doc.base.getObject(self.nombre).addGeometry(geometriaElipse,False)
+        self.agregarGeometria(geometriaElipse,constructiva)
 
         return self
 
-    #TODO Crear metodo para crear rectangulo de tipo centroEsquina
-    #TODO Permitir hacer rectangulos con inclinacion
-    def crearRectangulo(self, puntoInicial = [0,0], puntoFinal = [0, 0]):
-        """Dibuja un rectangulo dados dos puntos"""
+    #COMPLETADO Crear metodo para crear rectangulo de tipo centroEsquina
+    #COMPLETADO Permitir hacer rectangulos con inclinacion
+    def crearRectanguloEsquinas(self, puntoInicial = [0,0], puntoFinal = [0, 0], angulo = 0, constructiva = False):
+        """Dibuja un rectangulo dados dos puntos y adicionalmente se puede especificar un angulo"""
         contGeometria = self.contGeometria()
 
         geoList = []
-        geoList.append(Part.LineSegment(App.Vector(puntoInicial[0],puntoFinal[1],0),App.Vector(puntoFinal[0],puntoFinal[1],0)))
-        geoList.append(Part.LineSegment(App.Vector(puntoFinal[0],puntoFinal[1],0),App.Vector(puntoFinal[0],puntoInicial[1],0)))
-        geoList.append(Part.LineSegment(App.Vector(puntoFinal[0],puntoInicial[1],0),App.Vector(puntoInicial[0],puntoInicial[1],0)))
-        geoList.append(Part.LineSegment(App.Vector(puntoInicial[0],puntoInicial[1],0),App.Vector(puntoInicial[0],puntoFinal[1],0)))
+        geoList.append(self.geometriaLinea(self.crearVector(puntoInicial[0],puntoFinal[1]),     self.crearVector(puntoFinal[0],puntoFinal[1])))
+        geoList.append(self.geometriaLinea(self.crearVector(puntoFinal[0],puntoFinal[1]),       self.crearVector(puntoFinal[0],puntoInicial[1])))
+        geoList.append(self.geometriaLinea(self.crearVector(puntoFinal[0],puntoInicial[1]),     self.crearVector(puntoInicial[0],puntoInicial[1])))
+        geoList.append(self.geometriaLinea(self.crearVector(puntoInicial[0],puntoInicial[1]),   self.crearVector(puntoInicial[0],puntoFinal[1])))
 
-        self.doc.base.getObject(self.nombre).addGeometry(geoList, False)
+        self.agregarGeometria(geoList, constructiva)
 
         conList = []
         conList.append(Sketcher.Constraint('Coincident', (contGeometria    ),  2,(contGeometria + 1), 1))
@@ -279,213 +344,249 @@ class Dibujo:
         conList.append(Sketcher.Constraint('Coincident', (contGeometria + 2),  2,(contGeometria + 3), 1))
         conList.append(Sketcher.Constraint('Coincident', (contGeometria + 3),  2,(contGeometria    ), 1))
 
-        conList.append(Sketcher.Constraint('Horizontal', (contGeometria    )))
-        conList.append(Sketcher.Constraint('Horizontal', (contGeometria + 2)))
-        conList.append(Sketcher.Constraint('Vertical',   (contGeometria + 1)))
-        conList.append(Sketcher.Constraint('Vertical',   (contGeometria + 3)))
+        conList.append(Sketcher.Constraint('Perpendicular', contGeometria, contGeometria+1))
+        conList.append(Sketcher.Constraint('Perpendicular', contGeometria, contGeometria+3))
+        conList.append(Sketcher.Constraint('Parallel',   contGeometria, contGeometria+2))
 
-        self.doc.base.getObject(self.nombre).addConstraint(conList)
+        self.base.addConstraint(conList)
 
         return self
 
-    #TODO Corregir la direccion en que se genera el arco
+    def crearRectanguloCentroEsquina(self, centro=[0,0], esquina=[10,10]):
+
+        centro = self.crearVector(centro[0],centro[1])
+        esquinaUno = self.crearVector(esquina[0],esquina[1])
+        esquinaDos = centro-(esquinaUno-centro)
+
+        self.crearRectanguloEsquinas(esquinaUno, esquinaDos)
+
+        return self
+
+    #COMPLETADO Corregir la direccion en que se genera el arco
     def crearPolilinea (self, puntos, constructiva = False):
         """Esta herramiento crea segmentos continuos de lineas conectadas por sus vertices """
-        for i in range(len(puntos)-1):
-            if len(puntos[i]) == 2:
-                if len(puntos[i+1]) == 2:
-                    self.crearLinea(puntos[i], puntos[i+1])
-
-                    if i != 0:
-                        self.base.addConstraint(Sketcher.Constraint('Coincident', (self.contGeometria()-1), 1, (self.contGeometria() - 2), 2))
-
-                elif len(puntos[i+1]) >= 3:
-                    #Esto quiere decir que el arco será interno (Predeterminado)
-                    if len(puntos[i+1]) == 3:
-                        puntos[i+1].append(False)
-
-                    if type(puntos[i+1][3]) is bool:
-                        geoData = self.datosGeometricosRecta(puntos[i], puntos[i+1][:2])
-
-                        #Para poder crear un arco a partir de dos puntos y su radio, es necesario conocer
-                        #el centro y la pendiente de la linea recta entre los dos puntos (centro y m)
-                        centro = geoData[4]
-                        radioIdeal = geoData[3]/2
-                        
-                        #COMPLETADO Añadir opcion para decidir si el arco es interior o exterior
-                        if puntos[i+1][3] is False:
-                                xTan = centro[0] + ( math.cos(geoData[1] + (math.pi/2)) * (radioIdeal*0.25) )
-                                yTan = centro[1] + ( math.sin(geoData[1] + (math.pi/2)) * (radioIdeal*0.25) )
+        if self.modo == "punto-vector":
+            for i in range(len(puntos)-1):
+                if len(puntos[i]) == 2:
+                    if len(puntos[i+1]) == 2:
+                        if i == 0:
+                            self.crearLinea(puntos[i], puntos[i+1])
                         else:
-                                xTan = centro[0] - ( math.cos(geoData[1] + (math.pi/2)) * (radioIdeal*0.25) )
-                                yTan = centro[1] - ( math.sin(geoData[1] + (math.pi/2)) * (radioIdeal*0.25) )
+                            self.crearLinea(self.base.Geometry[self.contGeometria()-1].EndPoint, puntos[i+1])
+                            self.base.addConstraint(Sketcher.Constraint('Coincident', (self.contGeometria()-1), 1, (self.contGeometria() - 2), 2))
 
-                        self.crearArcoTresPuntos(puntos[i], puntos[i+1][:2], [xTan, yTan])
-                        
-                        #Se bloquea los puntos inicial y final del arco para crear la restriccion de radio
-                        if puntos[i+1][3] is False:
-                            self.bloquearPunto(self.contGeometria()-1, 2, puntos[i])
-                            self.bloquearPunto(self.contGeometria()-1, 1, puntos[i+1][:2])
-                        else:
-                            self.bloquearPunto(self.contGeometria()-1, 1, puntos[i])
-                            self.bloquearPunto(self.contGeometria()-1, 2, puntos[i+1][:2])
+        else:
+            for i in range(len(puntos)-1):
+                if len(puntos[i]) == 2:
+                    if len(puntos[i+1]) == 2:
+                        self.crearLinea(puntos[i], puntos[i+1])
 
-                        self.base.addConstraint(Sketcher.Constraint('Radius',self.contGeometria()-1,puntos[i+1][2]))
-                            
-                        #Se eliminan todas las restricciones
-                        contRestricciones = self.contRestricciones()-1
-                        for j in range(5):
-                            self.base.delConstraint(contRestricciones-j)
-
-                        if i != 0:
-                            if puntos[i+1][3] is False:
-                                self.base.addConstraint(Sketcher.Constraint('Coincident', (self.contGeometria()-1), 2, (self.contGeometria() - 2), 2))
-                            else:
-                                self.base.addConstraint(Sketcher.Constraint('Coincident', (self.contGeometria()-1), 1, (self.contGeometria() - 2), 2))
-
-                    else:
-                        print(f"Los puntos {puntos[i+1]} no pueden ser croquizados por esta herramienta")
-                        return self
-
-            elif len(puntos[i]) >= 3:
-                if len(puntos[i+1]) == 2:
-                    self.crearLinea(puntos[i][:2], puntos[i+1])
-
-                    if len(puntos[i]) == 3:
-                        puntos[i].append(False)
-
-                    if puntos[i][3] is False:
-                        if i != 0:
-                            self.base.addConstraint(Sketcher.Constraint('Coincident', (self.contGeometria()-1), 1, (self.contGeometria() - 2), 1))
-                    else:
                         if i != 0:
                             self.base.addConstraint(Sketcher.Constraint('Coincident', (self.contGeometria()-1), 1, (self.contGeometria() - 2), 2))
 
-                #Esto quiere decir que el arco será interno (Predeterminado)
-                elif len(puntos[i+1]) >= 3:
-                    if len(puntos[i+1]) == 3:
-                        puntos[i+1].append(False)
+                    elif len(puntos[i+1]) >= 3:
+                        #Esto quiere decir que el arco será interno (Predeterminado)
+                        if len(puntos[i+1]) == 3:
+                            puntos[i+1].append(False)
 
-                    if type(puntos[i+1][3]) is bool:
-                        geoData = self.datosGeometricosRecta(puntos[i][:2], puntos[i+1][:2])
+                        if type(puntos[i+1][3]) is bool:
+                            geoData = self.datosGeometricosRecta(puntos[i], puntos[i+1][:2])
 
-                        #Para poder crear un arco a partir de dos puntos y su radio, es necesario conocer
-                        #el centro y la pendiente de la linea recta entre los dos puntos (centro y m)
-                        centro = geoData[4]
-                        radioIdeal = geoData[3]/2
-                        
-                        #COMPLETADO Añadir opcion para decidir si el arco es interior o exterior
-                        if puntos[i+1][3] is False:
-                            xTan = centro[0] + ( math.cos(geoData[1] + (math.pi/2)) * (radioIdeal*0.25) )
-                            yTan = centro[1] + ( math.sin(geoData[1] + (math.pi/2)) * (radioIdeal*0.25) )
-                        else:
-                            xTan = centro[0] - ( math.cos(geoData[1] + (math.pi/2)) * (radioIdeal*0.25) )
-                            yTan = centro[1] - ( math.sin(geoData[1] + (math.pi/2)) * (radioIdeal*0.25) )
-
-                        self.crearArcoTresPuntos(puntos[i][:2], puntos[i+1][:2], [xTan, yTan])
-                        
-                        #Se bloquea los puntos inicial y final del arco para crear la restriccion de radio
-                        if puntos[i+1][3] is False:
-                            self.bloquearPunto(self.contGeometria()-1, 2, puntos[i][:2])
-                            self.bloquearPunto(self.contGeometria()-1, 1, puntos[i+1][:2])  
-                        else:
-                            self.bloquearPunto(self.contGeometria()-1, 1, puntos[i][:2])
-                            self.bloquearPunto(self.contGeometria()-1, 2, puntos[i+1][:2])
-
-                        self.base.addConstraint(Sketcher.Constraint('Radius',self.contGeometria()-1,puntos[i+1][2]))
+                            #Para poder crear un arco a partir de dos puntos y su radio, es necesario conocer
+                            #el centro y la pendiente de la linea recta entre los dos puntos (centro y m)
+                            centro = geoData[4]
+                            radioIdeal = geoData[3]/2
                             
-                        #Se eliminan todas las restricciones
-                        contRestricciones = self.contRestricciones()-1
-                        for j in range(5):
-                            self.base.delConstraint(contRestricciones-j)
-
-                        if i != 0:
+                            #COMPLETADO Añadir opcion para decidir si el arco es interior o exterior
                             if puntos[i+1][3] is False:
-                                if puntos[i][3] is False:
-                                    self.base.addConstraint(Sketcher.Constraint('Coincident', (self.contGeometria()-1), 2, (self.contGeometria() - 2), 1))
-                                else:
-                                    self.base.addConstraint(Sketcher.Constraint('Coincident', (self.contGeometria()-1), 2, (self.contGeometria() - 2), 2))
+                                    xTan = centro[0] + ( math.cos(geoData[1] + (math.pi/2)) * (radioIdeal*0.25) )
+                                    yTan = centro[1] + ( math.sin(geoData[1] + (math.pi/2)) * (radioIdeal*0.25) )
                             else:
-                                if puntos[i][3] is False:
-                                    self.base.addConstraint(Sketcher.Constraint('Coincident', (self.contGeometria()-1), 1, (self.contGeometria() - 2), 1))
+                                    xTan = centro[0] - ( math.cos(geoData[1] + (math.pi/2)) * (radioIdeal*0.25) )
+                                    yTan = centro[1] - ( math.sin(geoData[1] + (math.pi/2)) * (radioIdeal*0.25) )
+
+                            self.crearArcoTresPuntos(puntos[i], puntos[i+1][:2], [xTan, yTan])
+                            
+                            #Se bloquea los puntos inicial y final del arco para crear la restriccion de radio
+                            if puntos[i+1][3] is False:
+                                self.bloquearPunto(self.contGeometria()-1, 2, puntos[i])
+                                self.bloquearPunto(self.contGeometria()-1, 1, puntos[i+1][:2])
+                            else:
+                                self.bloquearPunto(self.contGeometria()-1, 1, puntos[i])
+                                self.bloquearPunto(self.contGeometria()-1, 2, puntos[i+1][:2])
+
+                            self.base.addConstraint(Sketcher.Constraint('Radius',self.contGeometria()-1,puntos[i+1][2]))
+                                
+                            #Se eliminan todas las restricciones
+                            contRestricciones = self.contRestricciones()-1
+                            for j in range(5):
+                                self.base.delConstraint(contRestricciones-j)
+
+                            if i != 0:
+                                if puntos[i+1][3] is False:
+                                    self.base.addConstraint(Sketcher.Constraint('Coincident', (self.contGeometria()-1), 2, (self.contGeometria() - 2), 2))
                                 else:
                                     self.base.addConstraint(Sketcher.Constraint('Coincident', (self.contGeometria()-1), 1, (self.contGeometria() - 2), 2))
 
-                    else:
-                        print(f"Los puntos {puntos[i+1]} no pueden ser croquizados por esta herramienta")
-                        return self
+                        else:
+                            print(f"Los puntos {puntos[i+1]} no pueden ser croquizados por esta herramienta")
+                            return self
+
+                elif len(puntos[i]) >= 3:
+                    if len(puntos[i+1]) == 2:
+                        self.crearLinea(puntos[i][:2], puntos[i+1])
+
+                        if len(puntos[i]) == 3:
+                            puntos[i].append(False)
+
+                        if puntos[i][3] is False:
+                            if i != 0:
+                                self.base.addConstraint(Sketcher.Constraint('Coincident', (self.contGeometria()-1), 1, (self.contGeometria() - 2), 1))
+                        else:
+                            if i != 0:
+                                self.base.addConstraint(Sketcher.Constraint('Coincident', (self.contGeometria()-1), 1, (self.contGeometria() - 2), 2))
+
+                    #Esto quiere decir que el arco será interno (Predeterminado)
+                    elif len(puntos[i+1]) >= 3:
+                        if len(puntos[i+1]) == 3:
+                            puntos[i+1].append(False)
+
+                        if type(puntos[i+1][3]) is bool:
+                            geoData = self.datosGeometricosRecta(puntos[i][:2], puntos[i+1][:2])
+
+                            #Para poder crear un arco a partir de dos puntos y su radio, es necesario conocer
+                            #el centro y la pendiente de la linea recta entre los dos puntos (centro y m)
+                            centro = geoData[4]
+                            radioIdeal = geoData[3]/2
+                            
+                            #COMPLETADO Añadir opcion para decidir si el arco es interior o exterior
+                            if puntos[i+1][3] is False:
+                                xTan = centro[0] + ( math.cos(geoData[1] + (math.pi/2)) * (radioIdeal*0.25) )
+                                yTan = centro[1] + ( math.sin(geoData[1] + (math.pi/2)) * (radioIdeal*0.25) )
+                            else:
+                                xTan = centro[0] - ( math.cos(geoData[1] + (math.pi/2)) * (radioIdeal*0.25) )
+                                yTan = centro[1] - ( math.sin(geoData[1] + (math.pi/2)) * (radioIdeal*0.25) )
+
+                            self.crearArcoTresPuntos(puntos[i][:2], puntos[i+1][:2], [xTan, yTan])
+                            
+                            #Se bloquea los puntos inicial y final del arco para crear la restriccion de radio
+                            if puntos[i+1][3] is False:
+                                self.bloquearPunto(self.contGeometria()-1, 2, puntos[i][:2])
+                                self.bloquearPunto(self.contGeometria()-1, 1, puntos[i+1][:2])  
+                            else:
+                                self.bloquearPunto(self.contGeometria()-1, 1, puntos[i][:2])
+                                self.bloquearPunto(self.contGeometria()-1, 2, puntos[i+1][:2])
+
+                            self.base.addConstraint(Sketcher.Constraint('Radius',self.contGeometria()-1,puntos[i+1][2]))
+                                
+                            #Se eliminan todas las restricciones
+                            contRestricciones = self.contRestricciones()-1
+                            for j in range(5):
+                                self.base.delConstraint(contRestricciones-j)
+
+                            if i != 0:
+                                if puntos[i+1][3] is False:
+                                    if puntos[i][3] is False:
+                                        self.base.addConstraint(Sketcher.Constraint('Coincident', (self.contGeometria()-1), 2, (self.contGeometria() - 2), 1))
+                                    else:
+                                        self.base.addConstraint(Sketcher.Constraint('Coincident', (self.contGeometria()-1), 2, (self.contGeometria() - 2), 2))
+                                else:
+                                    if puntos[i][3] is False:
+                                        self.base.addConstraint(Sketcher.Constraint('Coincident', (self.contGeometria()-1), 1, (self.contGeometria() - 2), 1))
+                                    else:
+                                        self.base.addConstraint(Sketcher.Constraint('Coincident', (self.contGeometria()-1), 1, (self.contGeometria() - 2), 2))
+
+                        else:
+                            print(f"Los puntos {puntos[i+1]} no pueden ser croquizados por esta herramienta")
+                            return self
 
         return self
 
-    def crearPoligono(self, radio = 1, centro=[0,0], lados = 6):
+    def crearPoligono(self, radio = 1, centro=[0,0], lados = 6, constructiva = False):
         #HACK Agregar opción o crear nuevo metodo para elegir entre poligono 
         # inscrito o circunscrito y tamaño de lados, usar restricciones tangenciales entre dos entidades
         
-        #TODO Cambiar las ecuaciones a la unidad para que sea mas rapido el procesamiento
-        contGeometria = self.contGeometria()
+        if lados < 3:
+            print("El numero de lados debe ser al menos 3")
+            return self
 
-        n = lados - 2
-        
-        angulosInternos = (180 * n)
-        anguloentreLineas = angulosInternos / lados
-        anguloTriangulos = anguloentreLineas / 2
-        anguloFaltante = 180 - 90 - anguloTriangulos
+        diffVec = self.crearVector(centro[0]+radio, centro[1]) - self.crearVector(centro[0], centro[1])
+        diffVec.z = 0
+        angular_diff = 2*math.pi/lados
 
-        anguloHorizontal = 180 - (anguloentreLineas)
+        pointList = []
 
-        circuloPosY = math.sin(math.radians(anguloTriangulos)) * 0.5 / math.sin(math.radians(anguloFaltante))
+        for i in range(0,lados):
+            cos_v = math.cos( angular_diff * i )
+            sin_v = math.sin( angular_diff * i )
 
-        puntosPoligono = [[centro[0] - (radio / 2), centro[1] - (circuloPosY)], [centro[0] + (radio / 2), centro[1] - (circuloPosY)]]
+            pointList.append( self.crearVector(centro[0], centro[1])+
+                self.crearVector(
+                    cos_v * diffVec.x - sin_v * diffVec.y,
+                    cos_v * diffVec.y + sin_v * diffVec.x
+                )
+            )
 
-        for i in range(1, lados):
-            puntosPoligono.append(
-                            [puntosPoligono[i][0] + radio * math.cos(math.radians(anguloHorizontal*i)), 
-                             puntosPoligono[i][1] + radio * math.sin(math.radians(anguloHorizontal*i))]
-                         )
+        geoList = []
 
-        self.crearPolilinea(puntosPoligono)
-        self.crearCirculo([0.5+centro[0],centro[1]+circuloPosY], radio, True)
+        for i in range(0,lados-1): 
+            geoList.append(self.geometriaLinea(pointList[i],pointList[i+1]))
+
+        geoList.append(self.geometriaLinea(pointList[lados-1],pointList[0]))
+        geoList.append(self.geometriaCirculo(self.crearVector(centro[0], centro[1]),diffVec.Length))
+
+        geoIndices = self.agregarGeometria(geoList,constructiva)
+
+        self.base.setConstruction(geoIndices[-1],True)
 
         conList = []
-        
-        conList.append(Sketcher.Constraint('Radius', contGeometria+lados, radio))
-        conList.append(Sketcher.Constraint('Coincident', (contGeometria), 1, (contGeometria+lados-1), 2))
-        
-        for i in range(1, lados):
-            if i > 0:
-                conList.append(Sketcher.Constraint('Equal', (contGeometria), (contGeometria + i)))
-        
-        
-        for i in range(lados):
-            conList.append(Sketcher.Constraint('PointOnObject', (contGeometria + i), 1,(contGeometria+lados)))
-        
-        self.doc.base.getObject(self.nombre).addConstraint(conList)
-        self.bloquearPunto(contGeometria+lados,3,centro,True)
+
+        for i in range(0,lados-1):
+            conList.append(Sketcher.Constraint(
+                'Coincident',
+                geoIndices[i],2,
+                geoIndices[i+1],1))
+
+        conList.append(Sketcher.Constraint(
+            'Coincident',
+            geoIndices[lados-1],2,
+            geoIndices[0],1))
+
+        for i in range(0,lados-1):
+            conList.append(Sketcher.Constraint('Equal',geoIndices[0],geoIndices[i+1]))
+
+        for i in range(0,lados):
+            conList.append(Sketcher.Constraint('PointOnObject',geoIndices[i],2,geoIndices[-1]))
+
+        conList.append(Sketcher.Constraint('Radius', geoIndices[-1], radio))
+
+        self.base.addConstraint(conList)
 
         return self
 
     #COMPLETADO Herramienta de ranura vertical u horizantal agregada
     #COMPLETADO Permitir hacer ranuras con inclinación
-    #TODO Corregir forma en que se crean los angulos (Sacar la tangente inversa)
+    #COMPLETADO Corregir forma en que se crean los angulos (Sacar la tangente inversa)
     def crearRanura(self, puntoInicial, puntoFinal, radio, constructiva = False):
         contGeometria = self.contGeometria()
 
-        m = (puntoFinal[1] - puntoInicial[1]) / (puntoFinal[0] - puntoInicial[0])
-        angulos = [m+(math.pi/2), m+(math.pi/2)+math.pi]
+        datosGeometricos = self.datosGeometricosRecta(puntoInicial,puntoFinal)
 
-        self.crearArco(puntoInicial, radio, [angulos[0], angulos[1]], 'rad', constructiva)
-        self.crearArco(puntoFinal, radio, [angulos[1], angulos[0]], 'rad', constructiva)
+        angulos = [datosGeometricos[1]+(math.pi/2), datosGeometricos[1]+(math.pi/2)+math.pi]
+
+        self.crearArco(puntoInicial, radio, angulos, 'rad', constructiva)
+        self.crearArco(puntoFinal, radio, angulos[::-1], 'rad', constructiva)
         self.crearLinea(self.base.Geometry[contGeometria].StartPoint, self.base.Geometry[contGeometria+1].EndPoint, constructiva)
         self.crearLinea(self.base.Geometry[contGeometria].EndPoint, self.base.Geometry[contGeometria+1].StartPoint, constructiva)
                 
         conList = []
 
-        conList.append(Sketcher.Constraint('Equal',contGeometria,contGeometria+1))
-        conList.append(Sketcher.Constraint('Radius',contGeometria, radio))
-        conList.append(Sketcher.Constraint('Tangent',contGeometria,1,contGeometria+2,1))
-        conList.append(Sketcher.Constraint('Tangent',contGeometria,2,contGeometria+3,1))
-        conList.append(Sketcher.Constraint('Tangent',contGeometria+1,1,contGeometria+3,2))
-        conList.append(Sketcher.Constraint('Tangent',contGeometria+1,2,contGeometria+2,2))
+        conList.append(Sketcher.Constraint('Equal',     contGeometria,      contGeometria+1))
+        conList.append(Sketcher.Constraint('Radius',    contGeometria,      radio))
+        conList.append(Sketcher.Constraint('Tangent',   contGeometria,1,    contGeometria+2,    1))
+        conList.append(Sketcher.Constraint('Tangent',   contGeometria,2,    contGeometria+3,    1))
+        conList.append(Sketcher.Constraint('Tangent',   contGeometria+1,    1,  contGeometria+3,  2))
+        conList.append(Sketcher.Constraint('Tangent',   contGeometria+1,    2,  contGeometria+2,  2))
 
         self.base.addConstraint(conList)
 
@@ -511,21 +612,17 @@ class Dibujo:
         #Puede darse el caso en que el primer indice no sea el que tenga la continuidad y en ese caso 
         #se invierte cual es la linea Uno y Dos, con el fin de que al establecer las restricciones siempre 
         #se tengan tres puntos diferentes
-        lineaUno = self.base.Geometry[geoIndex[0]]
-        lineaDos = self.base.Geometry[geoIndex[1]]
-        indexUno = geoIndex[0]
-        indexDos = geoIndex[1]
+        lineas = [self.base.Geometry[geoIndex[0]], self.base.Geometry[geoIndex[1]]]
+        indices = [geoIndex[1], geoIndex[0]]
 
         try:
-            lineaUno.continuityWith(lineaDos)
+            lineas[0].continuityWith(lineas[1])
         except Part.OCCError:
-            lineaUno = self.base.Geometry[geoIndex[1]]
-            lineaDos = self.base.Geometry[geoIndex[0]]
-            indexUno = geoIndex[1]
-            indexDos = geoIndex[0]
+            lineas = lineas[::-1]
+            indices = indices[::-1]
 
             try:
-                lineaUno.continuityWith(lineaDos)
+                lineas[0].continuityWith(lineas[1])
             except Part.OCCError:
                 print("Las lineas de los indices ingresados no son continuas, la herramientas de recorte no funciona con lineas discontinuas")
                 return self
@@ -539,29 +636,29 @@ class Dibujo:
 
         self.conmutarRestricciones()
 
-        self.bloquearPunto(indexUno, 1, [lineaUno.StartPoint[0], lineaUno.StartPoint[1]])
-        self.bloquearPunto(indexUno, 2, [lineaUno.EndPoint[0], lineaUno.EndPoint[1]])
-        self.bloquearPunto(indexDos, 2, [lineaDos.EndPoint[0], lineaDos.EndPoint[1]])
+        self.bloquearPunto(indices[0], 1, [lineas[0].StartPoint[0], lineas[0].StartPoint[1]])
+        self.bloquearPunto(indices[0], 2, [lineas[0].EndPoint[0],   lineas[0].EndPoint[1]])
+        self.bloquearPunto(indices[1], 2, [lineas[1].EndPoint[0],   lineas[1].EndPoint[1]])
 
         #Se crea una linea que será la que nos servirá para crear el filete
-        lineaPuntoUno = [((lineaUno.StartPoint[0] + lineaUno.EndPoint[0])/2), ((lineaUno.StartPoint[1] + lineaUno.EndPoint[1])/2)]
-        lineaPuntoDos = [((lineaUno.EndPoint[0] + lineaDos.EndPoint[0])/2), ((lineaUno.EndPoint[1] + lineaDos.EndPoint[1])/2)]
+        lineaPuntoUno = [((lineas[0].StartPoint[0] + lineas[0].EndPoint[0])/2), ((lineas[0].StartPoint[1] + lineas[0].EndPoint[1])/2)]
+        lineaPuntoDos = [((lineas[0].EndPoint[0] + lineas[1].EndPoint[0])/2),   ((lineas[0].EndPoint[1] + lineas[1].EndPoint[1])/2)]
         
         self.crearLinea(lineaPuntoUno, lineaPuntoDos)
 
-        self.base.addConstraint(Sketcher.Constraint('PointOnObject',contGeometria,1,indexUno)) 
-        self.base.addConstraint(Sketcher.Constraint('PointOnObject',contGeometria,2,indexDos)) 
-        self.base.addConstraint(Sketcher.Constraint('Distance',contGeometria,1,indexUno,2,longitud)) 
-        self.base.addConstraint(Sketcher.Constraint('Distance',contGeometria,2,indexUno,2,longitud)) 
+        self.base.addConstraint(Sketcher.Constraint('PointOnObject',    contGeometria,1,indices[0])) 
+        self.base.addConstraint(Sketcher.Constraint('PointOnObject',    contGeometria,2,indices[1])) 
+        self.base.addConstraint(Sketcher.Constraint('Distance',         contGeometria,1,indices[0],2,longitud)) 
+        self.base.addConstraint(Sketcher.Constraint('Distance',         contGeometria,2,indices[0],2,longitud)) 
 
         #Se calcula la posicion de corte, debido a que si se hace en los puntos finales o inciales marca error
         ultimaLinea = self.base.Geometry[contGeometria]
 
-        posTrimUno = [((ultimaLinea.StartPoint[0] + lineaUno.EndPoint[0])/2), ((ultimaLinea.StartPoint[1] + lineaUno.EndPoint[1])/2)]
-        posTrimDos = [((ultimaLinea.EndPoint[0] + lineaUno.EndPoint[0])/2), ((ultimaLinea.EndPoint[1] + lineaUno.EndPoint[1])/2)]
+        posTrimUno = [((ultimaLinea.StartPoint[0] + lineas[0].EndPoint[0])/2), ((ultimaLinea.StartPoint[1] + lineas[0].EndPoint[1])/2)]
+        posTrimDos = [((ultimaLinea.EndPoint[0] + lineas[0].EndPoint[0])/2), ((ultimaLinea.EndPoint[1] + lineas[0].EndPoint[1])/2)]
         
-        self.recortarAristas(indexUno,App.Vector(posTrimUno[0],posTrimUno[1],0))
-        self.recortarAristas(indexDos,App.Vector(posTrimDos[0],posTrimDos[1],0))
+        self.recortarAristas(indices[0],self.crearVector(posTrimUno[0],posTrimUno[1]))
+        self.recortarAristas(indices[1],self.crearVector(posTrimDos[0],posTrimDos[1]))
 
         #El -3 en la siguiente linea es debido a que queremos conservar las restricciones de coincidencia
         #entre la linea nueva del filete y las lineas de la geometria existente, y dado que al hacer el
@@ -573,6 +670,7 @@ class Dibujo:
             self.base.delConstraint(contRestricciones-i)
 
         self.conmutarRestricciones()
+
         self.base.toggleActive(self.contRestricciones() - 1)
         self.base.toggleActive(self.contRestricciones() - 2)
 
@@ -585,7 +683,7 @@ class Dibujo:
 
     #COMPLETADO Las coordenadas en lugar de ser directas ahora reemplazan los valores de un vector
     def recortarAristas(self, geoIndex, coordenadas = [0,0]):
-        self.base.trim(geoIndex,App.Vector(coordenadas[0],coordenadas[1],0))
+        self.base.trim(geoIndex,self.crearVector(coordenadas[0],coordenadas[1]))
         
         return self
 
@@ -597,7 +695,7 @@ class Dibujo:
     #COMPLETADO Terminar metodo de matriz lineal
     #HACK Preguntar si la distancia debe ser horizontal o normal a los puntos
     #HACK Crear un metodo para creación de matrices polares
-    def matrizLineal(self, elementos, colxfil, distancia, direccion = 0, clonar = False, acotar = False):
+    def matrizLineal(self, elementos, colxfil, distancia, angulo = 0, clonar = False, acotar = False):
         """
         Crea una matriz de tamaño [filas x columnas] de la geometria seleccionada, desplazada una  cierta 
         distancia en un cierto angulo dado tomando como referencia el ultimo punto de la lista de elementos
@@ -605,7 +703,7 @@ class Dibujo:
         Parametros:
         elementos: Puede ser un unico entero o una lista de enteros que indican el indice de la geometria
         colxfil: Si solo se proporciona un entero se tomará como el numero de filas, de lo contrario proporcionar una lista [filas, columnas]
-        direccion: Angulo con respecto al eje horizontal sobre el cual se creará la matriz, por defecto en grados, si se quiere especificar otra unidad debe ingresar una cadena de texto, ejemplo: '45 rad'
+        angulo: Angulo con respecto al eje horizontal sobre el cual se creará la matriz, por defecto en grados, si se quiere especificar otra unidad debe ingresar una cadena de texto, ejemplo: '45 rad'
         distancia: Separacion horizontal entre elementos de la matriz
         clonar: Si este parametro es True los elementos de la matriz cambiaran si la geometria original cambia, de lo contrario cada elemento será independiente
         acotar: Si es True, se incluirá una restricción de longitud entre los pivotes de cada elemento
@@ -614,13 +712,13 @@ class Dibujo:
         #y se tendrá que convertir a lista para que pueda ser aceptado por la funcion, si el tipo del
         #parametro ya es una lista simplemente se utiliza sin convertir
         if type(elementos) is int:
-            elementos = [int(elementos)]
+            elementos = [elementos]
 
         #Se hace lo mismo con el parametro 'colxfil' y ademas se pregunta por su tamaño, ya que siempre
         #deben haber dos elementos en este parametro si solamente se introdujo uno (columnas)
         #se agrega un uno como filas
         if type(colxfil) is int:
-            colxfil = [int(colxfil), 1]
+            colxfil = [colxfil, 1]
 
         elif len(colxfil) == 1:
             colxfil.append(1)
@@ -634,46 +732,52 @@ class Dibujo:
         else:
             distancia[1] = distancia[1]/distancia[0]
 
-        #Para el parametro 'direccion' si se proporciona un tipo de dato que no es str es 
+        #Para el parametro 'angulo' si se proporciona un tipo de dato que no es str es 
         #por que implicitamente se estan usando grados, asi que se hace la conversion a radianes para
         #las funciones trigonometricas, de lo contrario simplemente se usa el string proporcionado
-        if direccion is not str:
-            vectorX = self.convertirUnidades(f"cos({direccion}*pi/180)*{distancia[0]}")
-            vectorY = self.convertirUnidades(f"sin({direccion}*pi/180)*{distancia[0]}")
+        if angulo is not str:
+            vectorX = self.convertirUnidades(f"cos({angulo}*pi/180)*{distancia[0]}")
+            vectorY = self.convertirUnidades(f"sin({angulo}*pi/180)*{distancia[0]}")
 
         else: 
-            vectorX = self.convertirUnidades(f"cos({direccion})*{distancia[0]}")
-            vectorY = self.convertirUnidades(f"sin({direccion})*{distancia[0]}")
+            vectorX = self.convertirUnidades(f"cos({angulo})*{distancia[0]}")
+            vectorY = self.convertirUnidades(f"sin({angulo})*{distancia[0]}")
 
         #Funcion de FreeCAD para la creaciones de matrices lineales
-        self.base.addRectangularArray(elementos, App.Vector(vectorX, vectorY, 0), clonar, colxfil[0], colxfil[1], acotar, distancia[1])
+        self.base.addRectangularArray(elementos, self.crearVector(vectorX, vectorY, 0), clonar, colxfil[0], colxfil[1], acotar, distancia[1])
 
         return self
 
-    #TODO Terminar metodo de copiado
-    def copiar(self):
-        print("Todavia no existo :D")
-
-        return self
-    #TODO Terminar metodo de clonacion
-    def clonar(self):
-        print("Todavia no existo :D")
+    #COMPLETADO Terminar metodo de copiado
+    def copiar(self, indicesGeometria, distancia, angulo = 0):
+        self.base.addCopy(indicesGeometria, self.crearVector(self.convertirUnidades(f"cos({angulo})*{distancia}"), self.convertirUnidades(f"sin({angulo})*{distancia}"), 0), False)
 
         return self
 
-    #TODO
-    def seleccionarGeometria(self):
-        #Idea de implementación: Establecer un punto desde el cual la geometria será seleccionada
-        print("Tampoco existo :D")
+    #COMPLETADO Terminar metodo de clonacion
+    def clonar(self, indicesGeometria, distancia, angulo = 0):
+        self.base.addCopy(indicesGeometria, self.crearVector(self.convertirUnidades(f"cos({angulo})*{distancia}"), self.convertirUnidades(f"sin({angulo})*{distancia}"), 0), True)
 
+        return self
+
+    #COMPLETADO
+    def seleccionarGeometria(self, referencia = False):
         """
         This constraint tool takes two points as its argument and serves to make the two points
         coincident. (Meaning to make them as-one-point).
 
         In practical terms this constraint tool is useful when there is a break in a profile for example 
         - where two lines end near each other and need to be joined - a coincident constraint 
-        on their end-points will close the gap.
+        on their end-points will close the gap.+
         """
+
+        #Idea de implementación: Establecer un punto desde el cual la geometria será seleccionada
+        numeroInicial = self.indicesGeometria
+        
+        if referencia == False:
+            self.indicesGeometria = self.contGeometria()
+
+        return list( range(numeroInicial, self.contGeometria()) )
 
     #################################
     ### OPERACIONES ENTRE CROQUIS ###

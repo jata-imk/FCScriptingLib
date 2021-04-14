@@ -349,6 +349,7 @@ class Cuerpo(Extrusion):
         """Constructor de la clase Parte 3D"""
         self.doc = doc
         self.nombre = nombreCuerpo
+        self.padre = self.doc.objetoActivo
 
         self.doc.base.addObject('PartDesign::Body',self.nombre)
         self.doc.cuerpos[self.nombre] = self

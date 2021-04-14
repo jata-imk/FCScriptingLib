@@ -1,12 +1,12 @@
 # -*- coding: utf-8 -*-
 
 import sys, os
-import FreeCAD, Sketcher
 
 FREECADPATH = os.getenv('FREECADPATH')
 sys.path.append(FREECADPATH) # path to your FreeCAD.so or FreeCAD.dll filE
 
-import FabCAD #Custom Library
+import FreeCAD, Sketcher
+import FabCAD 				#Custom Library
 
 nameProject = "FirstSteps"
 namePart = "Pieza01"
@@ -30,17 +30,22 @@ puntos.append([29.739,8.8786])
 
 sketch.crearPolilinea(puntos).extrusionAditiva("Test", 50, planoMedio = 1)
 
-sketch02 = FabCAD.nuevoSketch("sketch02", doc, soporte = "Planta").crearPoligono(10,[50,50], 7).extrusionDeVaciado("Test02", 50, planoMedio = 1)
-sketch03 = FabCAD.nuevoSketch("sketch03", doc, soporte = "Planta").crearLinea([152.934,38.4578], [102.066,1.54221]).crearArcoTresPuntos([152.934,38.4578], [102.066,1.54221], [148.132202,-3.356926]).revolucionAditiva()
-sketch04 = FabCAD.nuevoSketch("sketch04", doc, soporte = "Planta").crearPolilinea([[71.5256,-5.78647], [71.5256,23.524], [89.308,8.86878], [71.5256,-5.78647]]).revolucionDeVaciado()
+sketch02 = FabCAD.nuevoSketch("sketch02", doc, soporte = "Planta")
+sketch02.crearPoligono(10,[50,50], 7).extrusionDeVaciado("Test02", 50, planoMedio = 1)
+
+sketch03 = FabCAD.nuevoSketch("sketch03", doc, soporte = "Planta")
+sketch03.crearLinea([152.934,38.4578], [102.066,1.54221]).crearArcoTresPuntos([152.934,38.4578], [102.066,1.54221], [148.132202,-3.356926]).revolucionAditiva()
+
+sketch04 = FabCAD.nuevoSketch("sketch04", doc, soporte = "Planta")
+sketch04.crearPolilinea([[71.5256,-5.78647], [71.5256,23.524], [89.308,8.86878], [71.5256,-5.78647]]).revolucionDeVaciado()
 
 #Se crea un plano con un offset de 25mm para que quede en la superficie de la primer extrusion
 #ya que aqui empezara una operacion de extrusion de saliente recubierta
 doc.crearPlano("basePrisma", "Planta", nameBody, offsets=[0,0,25])
 doc.crearPlano("techoPrisma", "Planta", nameBody, offsets=[0,0,75])
 
-sketch05 = FabCAD.nuevoSketch("sketch05", doc, nameBody, soporte="basePrisma").crearRectangulo([86.294,39.2519],[112.215,65.1726])
-sketch06 = FabCAD.nuevoSketch("sketch06", doc, nameBody, soporte="techoPrisma").crearRectangulo([92.2162,52.2524],[105.737,53.3337])
+sketch05 = FabCAD.nuevoSketch("sketch05", doc, nameBody, soporte="basePrisma").crearRectanguloEsquinas([86.294,39.2519],[112.215,65.1726])
+sketch06 = FabCAD.nuevoSketch("sketch06", doc, nameBody, soporte="techoPrisma").crearRectanguloEsquinas([92.2162,52.2524],[105.737,53.3337])
 
 sketch05.recubrir(sketch06)
 
@@ -63,8 +68,12 @@ doc.crearPlano("fondoPieza", "Planta", nameBody, offsets=[0,0,-25])
 sketch11 = FabCAD.nuevoSketch("sketch11", doc, nameBody, soporte="fondoPieza")
 sketch11.copiarGeometriaCroquis("sketch")
 
-sketch12 = FabCAD.nuevoSketch("sketch12",doc,False,soporte="Planta").crearCirculo(radio=3.1416).salienteConducida(sketch10)
-sketch13 = FabCAD.nuevoSketch("sketch13",doc,False,soporte="Planta").crearCirculo(radio=4).salienteConducida(sketch11)
+sketch12 = FabCAD.nuevoSketch("sketch12",doc,False,soporte="Planta").crearCirculo(radio=2.5).salienteConducida(sketch10)
+sketch13 = FabCAD.nuevoSketch("sketch13",doc,False,soporte="Planta").crearCirculo(radio=2.5).salienteConducida(sketch11, nombreExtrusion="salienteConducida02")
+
+from FabCAD.mallado import Mallas
+
+Mallas().exportarEnSTL(doc.cuerpos[nameBody])
 
 #puntos = []
 #puntos.append([152.934,38.4578])
@@ -138,12 +147,12 @@ puntos.append([74,38])
 puntos.append([83,60])
 
 #Uso desquiciado del method chaining xD
-sketchTest.crearRectangulo([100, 10],[140, 20]).crearRectangulo([100, 40],[140, 60]).crearCirculo([25, 50], 15).crearCirculo([150, 50], 15).crearPolilinea(puntos).crearPoligono(10).crearPoligono(12.5, [20, 100], 8).crearPoligono(15, [60, 110], 4).crearPoligono(10, [33, -17], 3).crearRanura([2,1], [8,5], 2)
+sketchTest.crearRectanguloEsquinas([100, 10],[140, 20]).crearRectanguloEsquinas([100, 40],[140, 60]).crearCirculo([25, 50], 15).crearCirculo([150, 50], 15).crearPolilinea(puntos).crearPoligono(10).crearPoligono(12.5, [20, 100], 8).crearPoligono(15, [60, 110], 4).crearPoligono(10, [33, -17], 3).crearRanura([2,1], [8,5], 2)
 sketchTest.crearPoligono(10, [200,200], 5)
 
 """
-nuevoSketch.crearRectangulo([100, 10],[140, 20])
-nuevoSketch.crearRectangulo([100, 40],[140, 60])
+nuevoSketch.crearRectanguloEsquinas([100, 10],[140, 20])
+nuevoSketch.crearRectanguloEsquinas([100, 40],[140, 60])
 
 nuevoSketch.crearCirculo([25, 50], 15)
 nuevoSketch.crearCirculo([150, 50], 15)

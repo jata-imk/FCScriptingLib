@@ -64,6 +64,7 @@ def nuevoSketch(nombreDibujo, doc, cuerpo = False, soporte = "XY_Plane", modoDeA
      return Dibujo(nombreDibujo, doc, cuerpo, soporte, modoDeAdjuncion)
 
 
+
 #TODO implementar lista de ultimos objetos creados para poder encadenar los metodos de clase
 #TODO Añadir ejemplos de uso en la libreta de Jupyter de los metodos del Sketcher
 
